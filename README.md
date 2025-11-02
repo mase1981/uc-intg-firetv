@@ -335,7 +335,7 @@ MIT License - See [LICENSE](LICENSE) file
 
 ## 🙏 Credits
 
-- **Developer**: [Meir Miyara](https://github.com/mase1981)
+- **Developer**: [Meir Miyara](https://www.linkedin.com/in/meirmiyara/)
 - **Framework**: [Unfolded Circle ucapi](https://github.com/unfoldedcircle/integration-python-library)
 
 ---
