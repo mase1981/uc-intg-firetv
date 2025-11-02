@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=65.0", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uc-intg-firetv"
+description = "Fire TV Integration for Unfolded Circle Remote Two/3"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Meir Miyara", email = "meir.miyara@gmail.com"}
+]
+keywords = [
+    "unfoldedcircle",
+    "integration",
+    "firetv",
+    "amazon",
+    "remote-control"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Home Automation",
+]
+
+dependencies = [
+    "ucapi>=0.3.1",
+    "aiohttp>=3.8.0",
+    "websockets>=11.0",
+    "zeroconf>=0.75.0",
+    "pyee>=8.0.0",
+    "certifi>=2022.0.0",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/mase1981/uc-intg-firetv"
+"Bug Reports" = "https://github.com/mase1981/uc-intg-firetv/issues"
+"Source" = "https://github.com/mase1981/uc-intg-firetv"
+
+[tool.setuptools]
+packages = ["uc_intg_firetv"]
+
+[tool.setuptools.dynamic]
+version = {attr = "uc_intg_firetv.__version__"}
+
+[tool.setuptools.package-data]
+uc_intg_firetv = ["*.json"]
+
+[project.scripts]
+uc-intg-firetv = "uc_intg_firetv.driver:main"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
