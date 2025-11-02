@@ -1,0 +1,43 @@
+{
+  "driver_id": "firetv",
+  "version": "0.1.0",
+  "min_core_api": "0.3.0",
+  "name": {
+    "en": "Fire TV"
+  },
+  "icon": "uc:tv",
+  "description": {
+    "en": "Control Fire TV devices via REST API"
+  },
+  "developer": {
+    "name": "Meir Miyara",
+    "email": "meir.miyara@gmail.com",
+    "url": "https://github.com/mase1981"
+  },
+  "home_page": "https://github.com/mase1981/uc-intg-firetv",
+  "documentation": "https://github.com/mase1981/uc-intg-firetv/blob/main/README.md",
+  "release_date": "2025-01-01",
+  "setup_data_schema": {
+    "title": {
+      "en": "Fire TV Configuration"
+    },
+    "description": {
+      "en": "Enter your Fire TV IP address. A PIN will be displayed on your TV screen."
+    },
+    "settings": [
+      {
+        "id": "host",
+        "label": {
+          "en": "Fire TV IP Address"
+        },
+        "field": {
+          "text": {
+            "default": "192.168.1.100"
+          }
+        }
+      }
+    ]
+  },
+  "device_discovery": false,
+  "port": 9090
+}
