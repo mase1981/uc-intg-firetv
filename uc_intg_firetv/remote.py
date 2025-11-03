@@ -12,7 +12,7 @@ from ucapi import StatusCodes
 from ucapi.remote import Attributes, Features, Remote, States
 from ucapi.ui import Buttons
 
-from uc_intg_firetv.apps import FIRE_TV_APPS, get_app_package
+from uc_intg_firetv.apps import FIRE_TV_TOP_APPS, get_app_package, validate_package_name
 
 _LOG = logging.getLogger(__name__)
 
@@ -65,12 +65,18 @@ class FireTVRemote(Remote):
             'PLAY_PAUSE',
             'FAST_FORWARD',
             'REWIND',
+            
+            # Top 5 app launch commands
+            'LAUNCH_NETFLIX',
+            'LAUNCH_PRIME_VIDEO',
+            'LAUNCH_DISNEY_PLUS',
+            'LAUNCH_PLEX',
+            'LAUNCH_KODI',
+            
+            # NOTE: custom_app command NOT in simple_commands
+            # Users type full command in activity: custom_app:com.package.name
+            # Handler catches it via command.startswith('custom_app:')
         ]
-        
-        # Add app launch commands with readable names
-        for app_id, app_data in FIRE_TV_APPS.items():
-            app_name = app_data['name'].upper().replace(' ', '_').replace('+', 'PLUS')
-            commands.append(f'LAUNCH_{app_name}')
         
         return commands
 
@@ -93,11 +99,11 @@ class FireTVRemote(Remote):
             # Media controls
             (Buttons.PLAY, 'PLAY_PAUSE', None),
             
-            # Quick app launchers on color buttons
+            # Quick app launchers on color buttons (Top 4 apps)
             (Buttons.RED, 'LAUNCH_NETFLIX', None),
             (Buttons.GREEN, 'LAUNCH_PRIME_VIDEO', None),
-            (Buttons.YELLOW, 'LAUNCH_YOUTUBE', None),
-            (Buttons.BLUE, 'LAUNCH_DISNEY_PLUS', None),
+            (Buttons.YELLOW, 'LAUNCH_DISNEY_PLUS', None),
+            (Buttons.BLUE, 'LAUNCH_PLEX', None),
         ]
         
         for button, short_cmd, long_cmd in button_configs:
@@ -119,9 +125,8 @@ class FireTVRemote(Remote):
     def _create_ui_pages(self) -> List[Dict[str, Any]]:
         return [
             self._create_navigation_page(),
-            self._create_streaming_apps_page(),
-            self._create_music_apps_page(),
-            self._create_utility_apps_page(),
+            self._create_top_apps_page(),
+            self._create_custom_apps_page(),
         ]
 
     def _create_navigation_page(self) -> Dict[str, Any]:
@@ -150,7 +155,7 @@ class FireTVRemote(Remote):
                 {'type': 'text', 'location': {'x': 3, 'y': 2}, 'text': 'MENU',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'MENU'}}},
                 
-                # Media controls - FIXED: Use text instead of symbols
+                # Media controls
                 {'type': 'text', 'location': {'x': 0, 'y': 4}, 'text': 'REW',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'REWIND'}}},
                 {'type': 'text', 'location': {'x': 1, 'y': 4}, 'text': 'PLAY',
@@ -160,135 +165,94 @@ class FireTVRemote(Remote):
             ]
         }
 
-    def _create_streaming_apps_page(self) -> Dict[str, Any]:
+    def _create_top_apps_page(self) -> Dict[str, Any]:
+        """Create page with top 5 pre-configured apps."""
         items = []
         
-        # Get streaming apps
-        streaming_apps = {
-            app_id: app_data
-            for app_id, app_data in FIRE_TV_APPS.items()
-            if app_data.get('category') == 'streaming'
-        }
+        # Top 5 apps in a clean grid layout
+        top_apps = [
+            ('netflix', 'Netflix', 0, 0),
+            ('prime_video', 'Prime', 1, 0),
+            ('disney_plus', 'Disney+', 2, 0),
+            ('plex', 'Plex', 0, 1),
+            ('kodi', 'Kodi', 1, 1),
+        ]
         
-        # Layout apps in grid (4 columns)
-        row, col = 0, 0
-        for app_id, app_data in list(streaming_apps.items())[:24]:  # Max 24 apps
-            if row >= 6:
-                break
-            
-            app_name = app_data['name']
-            label = app_name[:8]  # Truncate for UI
-            cmd_name = app_name.upper().replace(' ', '_').replace('+', 'PLUS')
-            
-            items.append({
-                'type': 'text',
-                'location': {'x': col, 'y': row},
-                'text': label,
-                'command': {'cmd_id': 'send_cmd', 'params': {'command': f'LAUNCH_{cmd_name}'}}
-            })
-            
-            col += 1
-            if col >= 4:
-                col = 0
-                row += 1
+        for app_id, label, col, row in top_apps:
+            app_data = FIRE_TV_TOP_APPS.get(app_id)
+            if app_data:
+                cmd_name = app_data['name'].upper().replace(' ', '_').replace('+', 'PLUS')
+                items.append({
+                    'type': 'text',
+                    'location': {'x': col, 'y': row},
+                    'text': label,
+                    'command': {'cmd_id': 'send_cmd', 'params': {'command': f'LAUNCH_{cmd_name}'}}
+                })
+        
+        # Info message about custom apps
+        items.append({
+            'type': 'text',
+            'location': {'x': 0, 'y': 3},
+            'size': {'width': 4, 'height': 1},
+            'text': '→ Custom Apps Page for more →',
+            'command': None
+        })
         
         return {
-            'page_id': 'streaming',
-            'name': 'Streaming',
+            'page_id': 'top_apps',
+            'name': 'Top Apps',
             'grid': {'width': 4, 'height': 6},
             'items': items
         }
 
-    def _create_music_apps_page(self) -> Dict[str, Any]:
+    def _create_custom_apps_page(self) -> Dict[str, Any]:
         """
-        Create music apps page.
+        Create page with instructions for custom app launching.
         
-        Returns:
-            Music apps page dictionary
+        Users create activities/buttons with commands like:
+        custom_app:com.hulu.plus
+        custom_app:com.spotify.tv.android
         """
         items = []
         
-        # Get music apps
-        music_apps = {
-            app_id: app_data
-            for app_id, app_data in FIRE_TV_APPS.items()
-            if app_data.get('category') == 'music'
-        }
+        # Instructions
+        items.append({
+            'type': 'text',
+            'location': {'x': 0, 'y': 0},
+            'size': {'width': 4, 'height': 2},
+            'text': 'Launch ANY app using:\ncustom_app:com.package.name',
+            'command': None
+        })
         
-        # Layout apps in grid
-        row, col = 0, 0
-        for app_id, app_data in music_apps.items():
-            if row >= 5:  # Leave room for media controls at bottom
-                break
-            
-            app_name = app_data['name']
-            label = app_name[:10]
-            cmd_name = app_name.upper().replace(' ', '_').replace('+', 'PLUS')
-            
+        # Examples
+        examples = [
+            ('Example:\nHulu', 'custom_app:com.hulu.plus', 0, 2),
+            ('Example:\nYouTube', 'custom_app:com.amazon.firetv.youtube', 2, 2),
+            ('Example:\nSpotify', 'custom_app:com.spotify.tv.android', 0, 3),
+            ('Example:\nVLC', 'custom_app:org.videolan.vlc', 2, 3),
+        ]
+        
+        for label, cmd, col, row in examples:
             items.append({
                 'type': 'text',
                 'location': {'x': col, 'y': row},
+                'size': {'width': 2, 'height': 1},
                 'text': label,
-                'command': {'cmd_id': 'send_cmd', 'params': {'command': f'LAUNCH_{cmd_name}'}}
+                'command': {'cmd_id': 'send_cmd', 'params': {'command': cmd}}
             })
-            
-            col += 1
-            if col >= 4:
-                col = 0
-                row += 1
         
-        # Add media controls at bottom
-        items.extend([
-            {'type': 'text', 'location': {'x': 0, 'y': 5}, 'text': 'REW',
-             'command': {'cmd_id': 'send_cmd', 'params': {'command': 'REWIND'}}},
-            {'type': 'text', 'location': {'x': 1, 'y': 5}, 'text': 'PLAY',
-             'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PLAY_PAUSE'}}},
-            {'type': 'text', 'location': {'x': 2, 'y': 5}, 'text': 'FWD',
-             'command': {'cmd_id': 'send_cmd', 'params': {'command': 'FAST_FORWARD'}}},
-        ])
+        # Help text
+        items.append({
+            'type': 'text',
+            'location': {'x': 0, 'y': 5},
+            'size': {'width': 4, 'height': 1},
+            'text': 'Find package names in app settings',
+            'command': None
+        })
         
         return {
-            'page_id': 'music',
-            'name': 'Music',
-            'grid': {'width': 4, 'height': 6},
-            'items': items
-        }
-
-    def _create_utility_apps_page(self) -> Dict[str, Any]:
-        items = []
-        
-        # Get utility apps
-        utility_apps = {
-            app_id: app_data
-            for app_id, app_data in FIRE_TV_APPS.items()
-            if app_data.get('category') in ['utility', 'system', 'news', 'sports', 'live_tv']
-        }
-        
-        # Layout apps in grid
-        row, col = 0, 0
-        for app_id, app_data in utility_apps.items():
-            if row >= 6:
-                break
-            
-            app_name = app_data['name']
-            label = app_name[:10]
-            cmd_name = app_name.upper().replace(' ', '_').replace('+', 'PLUS')
-            
-            items.append({
-                'type': 'text',
-                'location': {'x': col, 'y': row},
-                'text': label,
-                'command': {'cmd_id': 'send_cmd', 'params': {'command': f'LAUNCH_{cmd_name}'}}
-            })
-            
-            col += 1
-            if col >= 4:
-                col = 0
-                row += 1
-        
-        return {
-            'page_id': 'utility',
-            'name': 'Apps & Settings',
+            'page_id': 'custom_apps',
+            'name': 'Custom Apps',
             'grid': {'width': 4, 'height': 6},
             'items': items
         }
@@ -368,6 +332,33 @@ class FireTVRemote(Remote):
         # Map uppercase commands to lowercase API calls
         command_lower = command.lower()
         
+        # Handle custom app launch command (following SkyQ channel_select pattern)
+        if command.startswith('custom_app:'):
+            try:
+                # Extract package name after colon
+                package = command.split(':', 1)[1].strip()
+                
+                # Validate package name format
+                if not validate_package_name(package):
+                    _LOG.error("Invalid package name format: %s", package)
+                    _LOG.error("Package must be in format: com.company.app")
+                    return
+                
+                _LOG.info("Launching custom app with package: %s", package)
+                success = await self._client.launch_app(package)
+                
+                if success:
+                    _LOG.info("✅ Successfully launched custom app: %s", package)
+                else:
+                    _LOG.warning("❌ Failed to launch custom app: %s", package)
+                    _LOG.warning("Check if app is installed on Fire TV")
+                
+                return
+                
+            except Exception as e:
+                _LOG.error("Error launching custom app: %s", e)
+                return
+        
         # Navigation commands
         nav_commands = {
             'dpad_up': self._client.dpad_up,
@@ -392,19 +383,20 @@ class FireTVRemote(Remote):
         elif command_lower == 'rewind':
             await self._client.rewind()
         
-        # App launch commands
+        # Pre-configured app launch commands (top 5)
         elif command.startswith('LAUNCH_'):
             # Convert LAUNCH_NETFLIX -> netflix
             app_name = command.replace('LAUNCH_', '').lower()
             
             # Find app by matching name
             package = None
-            for app_id, app_data in FIRE_TV_APPS.items():
+            for app_id, app_data in FIRE_TV_TOP_APPS.items():
                 if app_data['name'].upper().replace(' ', '_').replace('+', 'PLUS') == command.replace('LAUNCH_', ''):
                     package = app_data['package']
                     break
             
             if package:
+                _LOG.info("Launching top app: %s (package: %s)", command, package)
                 await self._client.launch_app(package)
             else:
                 _LOG.warning("Unknown app command: %s", command)
