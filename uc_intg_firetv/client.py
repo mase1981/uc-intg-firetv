@@ -137,33 +137,53 @@ class FireTVClient:
             _LOG.error("Error verifying PIN: %s", e)
             return None
 
-    async def test_connection(self) -> bool:
+    async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
         await self._ensure_session()
         
-        _LOG.debug("Testing connection to %s", self._base_url)
+        _LOG.info("Testing connection to %s (will retry up to %d times)", 
+                 self._base_url, max_retries)
         
-        try:
-            # Try to reach the base URL or status endpoint
-            async with self.session.get(
-                f"{self._base_url}/",
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                # Any response means Fire TV is reachable
-                reachable = response.status in [200, 400, 401, 404, 405]
-                if reachable:
-                    _LOG.info("✅ Fire TV is reachable at %s", self.host)
-                else:
-                    _LOG.warning("⚠️ Unexpected response status: %d", response.status)
-                return reachable
-        except asyncio.TimeoutError:
-            _LOG.error("❌ Connection timeout to %s", self.host)
-            return False
-        except aiohttp.ClientConnectorError as e:
-            _LOG.error("❌ Connection failed to %s: %s", self.host, e)
-            return False
-        except Exception as e:
-            _LOG.debug("Connection test failed: %s", e)
-            return False
+        for attempt in range(1, max_retries + 1):
+            try:
+                _LOG.info("Connection attempt %d/%d to %s...", 
+                         attempt, max_retries, self.host)
+                
+                # Try to reach the base URL or status endpoint
+                async with self.session.get(
+                    f"{self._base_url}/",
+                    timeout=aiohttp.ClientTimeout(total=12)  # Increased from 5 to 12
+                ) as response:
+                    # Any response means Fire TV is reachable
+                    reachable = response.status in [200, 400, 401, 404, 405]
+                    if reachable:
+                        _LOG.info("✅ Fire TV is reachable at %s (attempt %d)", 
+                                 self.host, attempt)
+                        return True
+                    else:
+                        _LOG.warning("⚠️ Unexpected response status: %d (attempt %d)", 
+                                   response.status, attempt)
+                        
+            except asyncio.TimeoutError:
+                _LOG.warning("⏱️ Connection timeout to %s (attempt %d/%d)", 
+                           self.host, attempt, max_retries)
+                
+            except aiohttp.ClientConnectorError as e:
+                _LOG.warning("⚠️ Connection failed to %s (attempt %d/%d): %s", 
+                           self.host, attempt, max_retries, str(e))
+                
+            except Exception as e:
+                _LOG.warning("⚠️ Unexpected error (attempt %d/%d): %s", 
+                           attempt, max_retries, str(e))
+            
+            # If this wasn't the last attempt, wait before retrying
+            if attempt < max_retries:
+                _LOG.info("⏳ Waiting %.1f seconds before retry...", retry_delay)
+                await asyncio.sleep(retry_delay)
+        
+        # All retries exhausted
+        _LOG.error("❌ Failed to connect to %s after %d attempts", 
+                  self.host, max_retries)
+        return False
 
     async def send_navigation_command(self, action: str) -> bool:
         await self._ensure_session()
