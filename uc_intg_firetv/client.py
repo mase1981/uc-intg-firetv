@@ -82,32 +82,72 @@ class FireTVClient:
         
         return headers
 
-    async def request_pin(self, friendly_name: str = "UC Remote") -> Optional[str]:
+    async def request_pin(self, friendly_name: str = "UC Remote", max_retries: int = 4, retry_delay: float = 3.0) -> Optional[str]:
+        """
+        Request PIN display from Fire TV with retry logic.
+        
+        Fire TV Cube may return success (200) but PIN=None initially,
+        then the PIN becomes available after a few seconds. We retry
+        until we get a valid PIN or max retries exhausted.
+        
+        Args:
+            friendly_name: Name to display on Fire TV
+            max_retries: Number of PIN request attempts (default: 4)
+            retry_delay: Seconds to wait between retries (default: 3.0)
+        
+        Returns:
+            PIN string if successful, None otherwise
+        """
         await self._ensure_session()
         
         url = f"{self._base_url}/v1/FireTV/pin/display"
         payload = {"friendlyName": friendly_name}
         
         _LOG.info("Requesting PIN display from Fire TV at %s", self.host)
+        _LOG.info("Will retry up to %d times if PIN not immediately available", max_retries)
         
-        try:
-            async with self.session.post(
-                url,
-                headers=self._get_headers(include_token=False),
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    pin = data.get('pin')
-                    _LOG.info("✅ PIN received: %s", pin)
-                    return pin
-                else:
-                    _LOG.error("PIN request failed with status: %d", response.status)
-                    return None
-        except Exception as e:
-            _LOG.error("Error requesting PIN: %s", e)
-            return None
+        for attempt in range(1, max_retries + 1):
+            try:
+                _LOG.info("PIN request attempt %d/%d...", attempt, max_retries)
+                
+                async with self.session.post(
+                    url,
+                    headers=self._get_headers(include_token=False),
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=15)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        pin = data.get('pin')
+                        
+                        if pin and pin != "None" and pin.strip():
+                            _LOG.info("✅ PIN received: %s (attempt %d)", pin, attempt)
+                            return pin
+                        else:
+                            _LOG.warning("⚠️ API returned success but PIN is None/empty (attempt %d/%d)", 
+                                       attempt, max_retries)
+                            _LOG.info("This is normal for Fire TV Cube - PIN display has a delay")
+                            
+                    else:
+                        _LOG.warning("⚠️ PIN request failed with status: %d (attempt %d/%d)", 
+                                   response.status, attempt, max_retries)
+                        
+            except asyncio.TimeoutError:
+                _LOG.warning("⏱️ PIN request timeout (attempt %d/%d)", attempt, max_retries)
+                
+            except Exception as e:
+                _LOG.warning("⚠️ Error requesting PIN (attempt %d/%d): %s", 
+                           attempt, max_retries, str(e))
+            
+            # If this wasn't the last attempt, wait before retrying
+            if attempt < max_retries:
+                _LOG.info("⏳ Waiting %.1f seconds for PIN to appear on TV...", retry_delay)
+                await asyncio.sleep(retry_delay)
+        
+        # All retries exhausted
+        _LOG.error("❌ Failed to get PIN after %d attempts", max_retries)
+        _LOG.error("PIN may have appeared on TV but API never returned it")
+        return None
 
     async def verify_pin(self, pin: str) -> Optional[str]:
         await self._ensure_session()
@@ -138,6 +178,19 @@ class FireTVClient:
             return None
 
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
+        """
+        Test connection to Fire TV with retry logic.
+        
+        Fire TV Cube devices may need time to wake up the REST API service,
+        so we retry multiple times with delays.
+        
+        Args:
+            max_retries: Number of connection attempts (default: 3)
+            retry_delay: Seconds to wait between retries (default: 3.0)
+        
+        Returns:
+            True if connection successful, False otherwise
+        """
         await self._ensure_session()
         
         _LOG.info("Testing connection to %s (will retry up to %d times)", 
