@@ -109,8 +109,6 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
         if 'host' in setup_data:
             host = setup_data.get('host')
             _LOG.info("Step 1: Testing connection to Fire TV at %s", host)
-            _LOG.info("Attempting HTTPS connection to port 8080...")
-            _LOG.info("Will retry up to 3 times with 3-second delays between attempts")
             
             # Test connection first (with retry logic)
             test_client = FireTVClient(host)
@@ -126,28 +124,18 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
                 _LOG.error("   - Try pressing a button on the physical remote to wake it")
                 _LOG.error("   - Wait a few seconds for Fire TV to fully wake up")
                 _LOG.error("")
-                _LOG.error("2. Fire TV Cube devices may need the REST API 'activated'")
-                _LOG.error("   - Try connecting the Fire TV mobile app first")
-                _LOG.error("   - Once the app connects, try this integration again")
-                _LOG.error("")
-                _LOG.error("3. Wrong IP address entered")
+                _LOG.error("2. Wrong IP address entered")
                 _LOG.error("   - Verify: Settings → Network → About")
                 _LOG.error("   - Current IP tried: %s", host)
                 _LOG.error("")
-                _LOG.error("4. Network/firewall blocking port 8080")
+                _LOG.error("3. Network/firewall blocking port 8080")
                 _LOG.error("   - Try pinging Fire TV: ping %s", host)
                 _LOG.error("   - Check router settings (AP isolation disabled)")
                 _LOG.error("")
-                _LOG.error("5. Fire TV model doesn't support REST API")
+                _LOG.error("4. Fire TV model doesn't support REST API")
                 _LOG.error("   - Fire TV Sticks: Usually supported")
-                _LOG.error("   - Fire TV Cube Gen 3: Supported (may need wake-up)")
+                _LOG.error("   - Fire TV Cube: Supported")
                 _LOG.error("   - Very old models: May not be supported")
-                _LOG.error("")
-                _LOG.error("Recommended steps:")
-                _LOG.error("1. Wake up Fire TV using physical remote")
-                _LOG.error("2. For Cube: Connect Fire TV app first")
-                _LOG.error("3. Wait 5-10 seconds, then try integration again")
-                _LOG.error("4. If still fails: Use ADB integration instead")
                 _LOG.error("=" * 60)
                 
                 await test_client.close()
@@ -155,48 +143,39 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             
             _LOG.info("✅ Connection successful to Fire TV")
             
-            # Request PIN display with retries (Fire TV Cube needs this)
+            # Request PIN display
             _LOG.info("Step 2: Requesting PIN display on Fire TV screen...")
-            _LOG.info("For Fire TV Cube: PIN may take 5-15 seconds to appear")
-            _LOG.info("Please wait patiently - integration will retry automatically...")
+            _LOG.info("Please look at your TV screen - PIN will appear shortly")
             
-            pin = await test_client.request_pin("UC Remote", max_retries=5, retry_delay=3.5)
+            pin_requested = await test_client.request_pin("UC Remote")
             await test_client.close()
             
-            if not pin:
+            if not pin_requested:
                 _LOG.error("=" * 60)
-                _LOG.error("❌ FAILED TO GET PIN FROM FIRE TV")
+                _LOG.error("❌ FAILED TO REQUEST PIN DISPLAY")
                 _LOG.error("=" * 60)
                 _LOG.error("")
-                _LOG.error("Connection succeeded but PIN was not returned by API.")
-                _LOG.error("")
-                _LOG.error("Important for Fire TV Cube users:")
-                _LOG.error("- The PIN may have appeared on your TV screen")
-                _LOG.error("- But the API never returned the PIN value")
-                _LOG.error("- This is a known Fire TV Cube timing issue")
+                _LOG.error("Connection succeeded but PIN display request failed.")
                 _LOG.error("")
                 _LOG.error("Troubleshooting steps:")
-                _LOG.error("1. Check if PIN is visible on TV screen right now")
-                _LOG.error("2. If yes: Note the PIN and try setup again immediately")
-                _LOG.error("3. If no: Wait 10 seconds and try setup again")
+                _LOG.error("1. Restart Fire TV completely (unplug power for 10 seconds)")
+                _LOG.error("2. Try connecting the Fire TV mobile app first")
+                _LOG.error("3. Check if Fire TV firmware is up to date")
+                _LOG.error("4. Try again - sometimes it works on second attempt")
                 _LOG.error("")
-                _LOG.error("Alternative solutions:")
-                _LOG.error("- Connect Fire TV mobile app first, then try integration")
-                _LOG.error("- Restart Fire TV completely (unplug power for 10 seconds)")
-                _LOG.error("- Use ADB integration instead (more reliable for Cube)")
-                _LOG.error("")
-                _LOG.error("Technical details:")
-                _LOG.error("- Tried %d times over %d seconds", 5, 5 * 3.5)
-                _LOG.error("- Fire TV API returned success but PIN=None each time")
-                _LOG.error("- This suggests Cube's REST API has delayed PIN generation")
+                _LOG.error("Alternative solution:")
+                _LOG.error("- Use the ADB integration instead (more compatible)")
                 _LOG.error("=" * 60)
                 return SetupError(IntegrationSetupError.OTHER)
-            config.set('host', host)
-            _LOG.info("✅ PIN received from Fire TV: %s", pin)
-            _LOG.info("Step 3: Displaying PIN entry screen to user")
-            _LOG.info("User should see PIN '%s' on Fire TV screen", pin)
             
-            # Return user input request for PIN
+            # Save host to config for later use
+            config.set('host', host)
+            
+            _LOG.info("✅ PIN display request successful")
+            _LOG.info("Step 3: Showing PIN entry page to user")
+            _LOG.info("User should enter the 4-digit PIN visible on TV screen")
+            
+            # ALWAYS return PIN entry page - user will see PIN on TV screen
             return ucapi.RequestUserInput(
                 title={"en": "Enter PIN from Fire TV"},
                 settings=[
@@ -246,13 +225,18 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             _LOG.error("")
             _LOG.error("Possible causes:")
             _LOG.error("1. Incorrect PIN entered")
+            _LOG.error("   - Double-check PIN on Fire TV screen")
+            _LOG.error("   - PIN is case-sensitive if it contains letters")
+            _LOG.error("")
             _LOG.error("2. PIN expired (60 second timeout)")
+            _LOG.error("   - Request a new PIN by restarting setup")
+            _LOG.error("")
             _LOG.error("3. Fire TV rejected authentication")
+            _LOG.error("   - Ensure only one device is pairing at a time")
             _LOG.error("")
             _LOG.error("Try:")
-            _LOG.error("- Double-check PIN on Fire TV screen")
-            _LOG.error("- Restart setup if PIN expired")
-            _LOG.error("- Ensure PIN is exactly 4 digits")
+            _LOG.error("- Click 'Try again' to get a new PIN")
+            _LOG.error("- Ensure PIN matches exactly what's on TV screen")
             _LOG.error("=" * 60)
             return SetupError(IntegrationSetupError.AUTHORIZATION_ERROR)
         
@@ -270,6 +254,7 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
         _LOG.info("✅ Setup completed successfully!")
         
         return SetupComplete()
+        
     elif isinstance(msg, ucapi.UserConfirmationResponse):
         _LOG.warning("Unexpected UserConfirmationResponse in setup")
         return SetupComplete()

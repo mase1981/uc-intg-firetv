@@ -82,72 +82,50 @@ class FireTVClient:
         
         return headers
 
-    async def request_pin(self, friendly_name: str = "UC Remote", max_retries: int = 4, retry_delay: float = 3.0) -> Optional[str]:
+    async def request_pin(self, friendly_name: str = "UC Remote") -> bool:
         """
-        Request PIN display from Fire TV with retry logic.
+        Request PIN display from Fire TV.
         
-        Fire TV Cube may return success (200) but PIN=None initially,
-        then the PIN becomes available after a few seconds. We retry
-        until we get a valid PIN or max retries exhausted.
+        This method requests the Fire TV to display a PIN on the TV screen.
+        The PIN is NOT returned by the API for security reasons (especially on Fire TV Cube).
+        The user must manually read the PIN from their TV screen and enter it.
         
         Args:
             friendly_name: Name to display on Fire TV
-            max_retries: Number of PIN request attempts (default: 4)
-            retry_delay: Seconds to wait between retries (default: 3.0)
         
         Returns:
-            PIN string if successful, None otherwise
+            True if PIN display request was successful, False otherwise
         """
         await self._ensure_session()
         
         url = f"{self._base_url}/v1/FireTV/pin/display"
         payload = {"friendlyName": friendly_name}
         
-        _LOG.info("Requesting PIN display from Fire TV at %s", self.host)
-        _LOG.info("Will retry up to %d times if PIN not immediately available", max_retries)
+        _LOG.info("Requesting PIN display on Fire TV at %s", self.host)
+        _LOG.info("User should see PIN on TV screen within 5-10 seconds")
         
-        for attempt in range(1, max_retries + 1):
-            try:
-                _LOG.info("PIN request attempt %d/%d...", attempt, max_retries)
-                
-                async with self.session.post(
-                    url,
-                    headers=self._get_headers(include_token=False),
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=15)
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        pin = data.get('pin')
-                        
-                        if pin and pin != "None" and pin.strip():
-                            _LOG.info("✅ PIN received: %s (attempt %d)", pin, attempt)
-                            return pin
-                        else:
-                            _LOG.warning("⚠️ API returned success but PIN is None/empty (attempt %d/%d)", 
-                                       attempt, max_retries)
-                            _LOG.info("This is normal for Fire TV Cube - PIN display has a delay")
-                            
-                    else:
-                        _LOG.warning("⚠️ PIN request failed with status: %d (attempt %d/%d)", 
-                                   response.status, attempt, max_retries)
-                        
-            except asyncio.TimeoutError:
-                _LOG.warning("⏱️ PIN request timeout (attempt %d/%d)", attempt, max_retries)
-                
-            except Exception as e:
-                _LOG.warning("⚠️ Error requesting PIN (attempt %d/%d): %s", 
-                           attempt, max_retries, str(e))
+        try:
+            async with self.session.post(
+                url,
+                headers=self._get_headers(include_token=False),
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=15)
+            ) as response:
+                if response.status == 200:
+                    _LOG.info("✅ PIN display request successful")
+                    _LOG.info("PIN should now be visible on Fire TV screen")
+                    return True
+                else:
+                    _LOG.error("❌ PIN display request failed with status: %d", response.status)
+                    return False
+                    
+        except asyncio.TimeoutError:
+            _LOG.error("⏱️ PIN display request timeout")
+            return False
             
-            # If this wasn't the last attempt, wait before retrying
-            if attempt < max_retries:
-                _LOG.info("⏳ Waiting %.1f seconds for PIN to appear on TV...", retry_delay)
-                await asyncio.sleep(retry_delay)
-        
-        # All retries exhausted
-        _LOG.error("❌ Failed to get PIN after %d attempts", max_retries)
-        _LOG.error("PIN may have appeared on TV but API never returned it")
-        return None
+        except Exception as e:
+            _LOG.error("⚠️ Error requesting PIN display: %s", str(e))
+            return False
 
     async def verify_pin(self, pin: str) -> Optional[str]:
         await self._ensure_session()
@@ -204,7 +182,7 @@ class FireTVClient:
                 # Try to reach the base URL or status endpoint
                 async with self.session.get(
                     f"{self._base_url}/",
-                    timeout=aiohttp.ClientTimeout(total=12)  # Increased from 5 to 12
+                    timeout=aiohttp.ClientTimeout(total=12)
                 ) as response:
                     # Any response means Fire TV is reachable
                     reachable = response.status in [200, 400, 401, 404, 405]
