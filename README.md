@@ -1,5 +1,5 @@
 # Fire TV Integration for Unfolded Circle Remote Two/3
-
+### IMPORTANT: this is still under development, only support 4k MAX Gen2, no other models are supported!!!!!!
 ![firetc](https://img.shields.io/badge/Fire-TV-red)
 [![GitHub Release](https://img.shields.io/github/v/release/mase1981/uc-intg-firetv?style=flat-square)](https://github.com/mase1981/uc-intg-firetv/releases)
 ![License](https://img.shields.io/badge/license-MPL--2.0-blue)
