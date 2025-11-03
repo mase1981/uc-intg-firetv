@@ -49,46 +49,43 @@ async def _initialize_entities():
         
         try:
             host = config.get_host()
+            port = config.get('port', 8080)
             token = config.get_token()
             
-            _LOG.info("Host: %s", host)
-            _LOG.info("Token: %s", token[:10] + "..." if token else "None")
+            _LOG.info(f"Host: {host}")
+            _LOG.info(f"Port: {port}")
+            _LOG.info(f"Token: {token[:10]}..." if token else "None")
             
-            # Create client with saved token
-            client = FireTVClient(host, token)
+            client = FireTVClient(host, port, token)
             
-            # Test connection
             if not await client.test_connection():
-                _LOG.error("Failed to connect to Fire TV at %s", host)
+                _LOG.error(f"Failed to connect to Fire TV at {host}:{port}")
                 await api.set_device_state(DeviceStates.ERROR)
                 _entities_ready = False
                 return
             
-            _LOG.info("✅ Connected to Fire TV at %s", host)
+            _LOG.info(f"✅ Connected to Fire TV at {host}:{port}")
             
-            # Create remote entity
-            device_id = f"firetv_{host.replace('.', '_').replace(':', '_')}"
+            device_id = f"firetv_{host.replace('.', '_')}_{port}"
             device_name = f"Fire TV ({host})"
             
             remote_entity = FireTVRemote(device_id, device_name)
             remote_entity.set_client(client)
             remote_entity.set_api(api)
             
-            # Add entities atomically
             api.available_entities.clear()
             api.available_entities.add(remote_entity)
             
             _entities_ready = True
             
-            _LOG.info("✅ Fire TV remote entity created: %s", remote_entity.id)
+            _LOG.info(f"✅ Fire TV remote entity created: {remote_entity.id}")
             _LOG.info("✅ Entities ready for subscription")
             _LOG.info("=" * 60)
             
-            # Set connected state
             await api.set_device_state(DeviceStates.CONNECTED)
             
         except Exception as e:
-            _LOG.error("Failed to initialize entities: %s", e, exc_info=True)
+            _LOG.error(f"Failed to initialize entities: {e}", exc_info=True)
             _entities_ready = False
             await api.set_device_state(DeviceStates.ERROR)
             raise
@@ -98,44 +95,46 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
     global config, client
     
     _LOG.info("=" * 60)
-    _LOG.info("SETUP HANDLER: %s", type(msg).__name__)
+    _LOG.info(f"SETUP HANDLER: {type(msg).__name__}")
     _LOG.info("=" * 60)
     
-    # Handle initial setup request with host
     if isinstance(msg, ucapi.DriverSetupRequest):
         _LOG.info("=== SETUP: Driver Setup Request ===")
         setup_data = msg.setup_data
         
         if 'host' in setup_data:
-            host = setup_data.get('host')
-            _LOG.info("Step 1: Testing connection to Fire TV at %s", host)
+            host_input = setup_data.get('host')
+            port_input = setup_data.get('port', '8080')
             
-            # Test connection first (with retry logic)
-            test_client = FireTVClient(host)
+            try:
+                port = int(port_input)
+            except ValueError:
+                _LOG.error(f"Invalid port number: {port_input}")
+                port = 8080
+            
+            _LOG.info(f"Step 1: Testing connection to Fire TV at {host_input}:{port}")
+            
+            test_client = FireTVClient(host_input, port)
+            
+            _LOG.info("Step 1a: Sending wake-up command to Fire TV")
+            await test_client.wake_up()
+            
+            _LOG.info("Step 1b: Waiting 3 seconds for Fire TV to wake up")
+            await asyncio.sleep(3)
+            
+            _LOG.info("Step 1c: Testing connection after wake-up")
             connection_ok = await test_client.test_connection(max_retries=3, retry_delay=3.0)
             
             if not connection_ok:
                 _LOG.error("=" * 60)
-                _LOG.error("❌ CANNOT REACH FIRE TV AT %s:8080", host)
+                _LOG.error(f"❌ CANNOT REACH FIRE TV AT {host_input}:{port}")
                 _LOG.error("=" * 60)
                 _LOG.error("")
-                _LOG.error("Possible causes:")
-                _LOG.error("1. Fire TV is not powered on or in sleep mode")
-                _LOG.error("   - Try pressing a button on the physical remote to wake it")
-                _LOG.error("   - Wait a few seconds for Fire TV to fully wake up")
-                _LOG.error("")
-                _LOG.error("2. Wrong IP address entered")
-                _LOG.error("   - Verify: Settings → Network → About")
-                _LOG.error("   - Current IP tried: %s", host)
-                _LOG.error("")
-                _LOG.error("3. Network/firewall blocking port 8080")
-                _LOG.error("   - Try pinging Fire TV: ping %s", host)
-                _LOG.error("   - Check router settings (AP isolation disabled)")
-                _LOG.error("")
-                _LOG.error("4. Fire TV model doesn't support REST API")
-                _LOG.error("   - Fire TV Sticks: Usually supported")
-                _LOG.error("   - Fire TV Cube: Supported")
-                _LOG.error("   - Very old models: May not be supported")
+                _LOG.error("Troubleshooting:")
+                _LOG.error("1. Fire TV is powered on")
+                _LOG.error("2. Correct IP address")
+                _LOG.error("3. Try different port (8080, 8009, 8443)")
+                _LOG.error("4. Network/firewall allows connection")
                 _LOG.error("=" * 60)
                 
                 await test_client.close()
@@ -143,9 +142,7 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             
             _LOG.info("✅ Connection successful to Fire TV")
             
-            # Request PIN display
-            _LOG.info("Step 2: Requesting PIN display on Fire TV screen...")
-            _LOG.info("Please look at your TV screen - PIN will appear shortly")
+            _LOG.info("Step 2: Requesting PIN display on Fire TV screen")
             
             pin_requested = await test_client.request_pin("UC Remote")
             await test_client.close()
@@ -154,28 +151,14 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
                 _LOG.error("=" * 60)
                 _LOG.error("❌ FAILED TO REQUEST PIN DISPLAY")
                 _LOG.error("=" * 60)
-                _LOG.error("")
-                _LOG.error("Connection succeeded but PIN display request failed.")
-                _LOG.error("")
-                _LOG.error("Troubleshooting steps:")
-                _LOG.error("1. Restart Fire TV completely (unplug power for 10 seconds)")
-                _LOG.error("2. Try connecting the Fire TV mobile app first")
-                _LOG.error("3. Check if Fire TV firmware is up to date")
-                _LOG.error("4. Try again - sometimes it works on second attempt")
-                _LOG.error("")
-                _LOG.error("Alternative solution:")
-                _LOG.error("- Use the ADB integration instead (more compatible)")
-                _LOG.error("=" * 60)
                 return SetupError(IntegrationSetupError.OTHER)
             
-            # Save host to config for later use
-            config.set('host', host)
+            config.set('host', host_input)
+            config.set('port', port)
             
             _LOG.info("✅ PIN display request successful")
             _LOG.info("Step 3: Showing PIN entry page to user")
-            _LOG.info("User should enter the 4-digit PIN visible on TV screen")
             
-            # ALWAYS return PIN entry page - user will see PIN on TV screen
             return ucapi.RequestUserInput(
                 title={"en": "Enter PIN from Fire TV"},
                 settings=[
@@ -194,12 +177,12 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             _LOG.error("Invalid setup data: missing host")
             return SetupError(IntegrationSetupError.OTHER)
     
-    # Handle user data response with PIN
     elif isinstance(msg, ucapi.UserDataResponse):
         _LOG.info("=== SETUP: User Data Response (PIN Entry) ===")
         
         pin = msg.input_values.get('pin')
         host = config.get_host()
+        port = config.get('port', 8080)
         
         if not host:
             _LOG.error("No host in config - setup flow broken")
@@ -209,10 +192,9 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             _LOG.error("No PIN provided by user")
             return SetupError(IntegrationSetupError.OTHER)
         
-        _LOG.info("Step 4: Verifying PIN '%s' with Fire TV", pin)
+        _LOG.info(f"Step 4: Verifying PIN '{pin}' with Fire TV")
         
-        # Verify PIN and get token
-        verify_client = FireTVClient(host)
+        verify_client = FireTVClient(host, port)
         token = await verify_client.verify_pin(pin)
         await verify_client.close()
         
@@ -220,27 +202,8 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             _LOG.error("=" * 60)
             _LOG.error("❌ PIN VERIFICATION FAILED")
             _LOG.error("=" * 60)
-            _LOG.error("")
-            _LOG.error("Entered PIN: %s", pin)
-            _LOG.error("")
-            _LOG.error("Possible causes:")
-            _LOG.error("1. Incorrect PIN entered")
-            _LOG.error("   - Double-check PIN on Fire TV screen")
-            _LOG.error("   - PIN is case-sensitive if it contains letters")
-            _LOG.error("")
-            _LOG.error("2. PIN expired (60 second timeout)")
-            _LOG.error("   - Request a new PIN by restarting setup")
-            _LOG.error("")
-            _LOG.error("3. Fire TV rejected authentication")
-            _LOG.error("   - Ensure only one device is pairing at a time")
-            _LOG.error("")
-            _LOG.error("Try:")
-            _LOG.error("- Click 'Try again' to get a new PIN")
-            _LOG.error("- Ensure PIN matches exactly what's on TV screen")
-            _LOG.error("=" * 60)
             return SetupError(IntegrationSetupError.AUTHORIZATION_ERROR)
         
-        # Save configuration with token
         config.set('token', token)
         config.save()
         
@@ -248,7 +211,6 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
         _LOG.info("✅ Authentication token obtained and saved")
         _LOG.info("Step 5: Setup complete - Initializing entities")
         
-        # Initialize entities
         await _initialize_entities()
         
         _LOG.info("✅ Setup completed successfully!")
@@ -259,12 +221,11 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
         _LOG.warning("Unexpected UserConfirmationResponse in setup")
         return SetupComplete()
     
-    # Handle abort
     elif isinstance(msg, ucapi.AbortDriverSetup):
         _LOG.warning("Setup aborted by user or system")
         return SetupError(IntegrationSetupError.OTHER)
     
-    _LOG.error("Unknown setup message type: %s", type(msg))
+    _LOG.error(f"Unknown setup message type: {type(msg)}")
     return SetupError(IntegrationSetupError.OTHER)
 
 
@@ -285,11 +246,10 @@ async def on_connect() -> None:
         try:
             await _initialize_entities()
         except Exception as e:
-            _LOG.error("Failed to reinitialize entities: %s", e)
+            _LOG.error(f"Failed to reinitialize entities: {e}")
             await api.set_device_state(DeviceStates.ERROR)
             return
     
-    # Set appropriate device state
     if config.is_configured() and _entities_ready:
         await api.set_device_state(DeviceStates.CONNECTED)
     elif not config.is_configured():
@@ -299,7 +259,6 @@ async def on_connect() -> None:
 
 
 async def on_disconnect() -> None:
-    """Handle Remote disconnection."""
     _LOG.info("Remote Two/3 disconnected")
 
 
@@ -307,10 +266,9 @@ async def on_subscribe_entities(entity_ids: List[str]):
     global remote_entity, _entities_ready
     
     _LOG.info("=" * 60)
-    _LOG.info("✅ SUBSCRIPTION EVENT - Entities subscribed: %s", entity_ids)
+    _LOG.info(f"✅ SUBSCRIPTION EVENT - Entities subscribed: {entity_ids}")
     _LOG.info("=" * 60)
     
-    # Guard against race condition
     if not _entities_ready:
         _LOG.error("RACE CONDITION: Subscription before entities ready! Attempting recovery...")
         if config and config.is_configured():
@@ -319,16 +277,15 @@ async def on_subscribe_entities(entity_ids: List[str]):
             _LOG.error("Cannot recover - no configuration available")
             return
     
-    # CRITICAL: Push initial state for each subscribed entity
     for entity_id in entity_ids:
         if remote_entity and entity_id == remote_entity.id:
-            _LOG.info("📡 Pushing initial state for remote entity: %s", entity_id)
+            _LOG.info(f"📡 Pushing initial state for remote entity: {entity_id}")
             await remote_entity.push_initial_state()
             _LOG.info("✅ Remote entity initial state pushed")
 
 
 async def on_unsubscribe_entities(entity_ids: List[str]):
-    _LOG.info("Entities unsubscribed: %s", entity_ids)
+    _LOG.info(f"Entities unsubscribed: {entity_ids}")
 
 
 async def main():
@@ -341,17 +298,14 @@ async def main():
     try:
         loop = asyncio.get_running_loop()
         
-        # Initialize config
         config = Config()
         config.load()
         
-        # Initialize API
         driver_path = os.path.join(os.path.dirname(__file__), "..", "driver.json")
         api = ucapi.IntegrationAPI(loop)
         
         if config.is_configured():
             _LOG.info("Found existing configuration, pre-initializing entities for reboot survival")
-            # Create task to initialize entities before UC Remote tries to subscribe
             loop.create_task(_initialize_entities())
         else:
             _LOG.info("No configuration found, waiting for setup...")
@@ -361,10 +315,8 @@ async def main():
         api.add_listener(Events.SUBSCRIBE_ENTITIES, on_subscribe_entities)
         api.add_listener(Events.UNSUBSCRIBE_ENTITIES, on_unsubscribe_entities)
         
-        # Initialize API
         await api.init(os.path.abspath(driver_path), setup_handler)
         
-        # Set initial state
         if config.is_configured():
             await api.set_device_state(DeviceStates.CONNECTING)
         else:
@@ -373,13 +325,12 @@ async def main():
         _LOG.info("Fire TV driver initialized successfully")
         _LOG.info("=" * 60)
         
-        # Run forever
         await asyncio.Future()
         
     except asyncio.CancelledError:
         _LOG.info("Driver task cancelled")
     except Exception as e:
-        _LOG.error("Fatal error in main: %s", e, exc_info=True)
+        _LOG.error(f"Fatal error in main: {e}", exc_info=True)
         raise
 
 
@@ -389,4 +340,4 @@ if __name__ == "__main__":
     except (KeyboardInterrupt, asyncio.CancelledError):
         _LOG.info("🔥 Fire TV driver stopped by user")
     except Exception as e:
-        _LOG.error("🔥 Fire TV driver crashed: %s", e, exc_info=True)
+        _LOG.error(f"🔥 Fire TV driver crashed: {e}", exc_info=True)

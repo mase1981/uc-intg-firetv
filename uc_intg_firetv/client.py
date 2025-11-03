@@ -6,7 +6,6 @@ Fire TV REST API Client Implementation.
 """
 
 import asyncio
-import json
 import logging
 import ssl
 from typing import Optional
@@ -18,11 +17,13 @@ _LOG = logging.getLogger(__name__)
 
 
 class FireTVClient:
-    def __init__(self, host: str, token: Optional[str] = None):
+    def __init__(self, host: str, port: int = 8080, token: Optional[str] = None):
         self.host = host
+        self.port = port
         self.token = token
-        self.api_key = "0987654321"  # Standard Fire TV API key
+        self.api_key = "0987654321"
         self.session: Optional[aiohttp.ClientSession] = None
+        
         if host.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
             protocol = "http"
             self._use_https = False
@@ -32,25 +33,21 @@ class FireTVClient:
             self._use_https = True
             _LOG.info("Using HTTPS for Fire TV device")
         
-        self._base_url = f"{protocol}://{self.host}:8080"
+        self._base_url = f"{protocol}://{self.host}:{self.port}"
 
     async def __aenter__(self):
-        """Async context manager entry."""
         await self._ensure_session()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
         await self.close()
 
     async def _ensure_session(self):
-        """Ensure HTTP session is available."""
         if self.session is None or self.session.closed:
             if self._use_https:
                 ssl_context = ssl.create_default_context(cafile=certifi.where())
                 ssl_context.check_hostname = False
                 ssl_context.verify_mode = ssl.CERT_NONE
-                
                 connector = aiohttp.TCPConnector(ssl=ssl_context)
                 _LOG.debug("Created HTTPS connector with SSL verification disabled")
             else:
@@ -61,11 +58,9 @@ class FireTVClient:
                 connector=connector,
                 timeout=aiohttp.ClientTimeout(total=10)
             )
-            _LOG.debug("HTTP session created for %s (%s)", self.host, 
-                      "HTTPS" if self._use_https else "HTTP")
+            _LOG.debug(f"HTTP session created for {self.host}:{self.port}")
 
     async def close(self):
-        """Close HTTP session."""
         if self.session and not self.session.closed:
             await self.session.close()
             _LOG.debug("HTTP session closed")
@@ -82,26 +77,41 @@ class FireTVClient:
         
         return headers
 
+    async def wake_up(self) -> bool:
+        await self._ensure_session()
+        
+        url = f"{self._base_url}/apps/FireTVRemote"
+        
+        _LOG.info(f"Sending wake-up POST to Fire TV at {self.host}:{self.port}")
+        
+        try:
+            async with self.session.post(
+                url,
+                headers=self._get_headers(include_token=False),
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                if response.status in [200, 201, 204]:
+                    _LOG.info(f"✅ Wake-up successful: {response.status}")
+                    return True
+                else:
+                    _LOG.warning(f"Wake-up returned status: {response.status}")
+                    return True
+                    
+        except asyncio.TimeoutError:
+            _LOG.warning("Wake-up timeout (device may already be awake)")
+            return True
+            
+        except Exception as e:
+            _LOG.warning(f"Wake-up error (device may already be awake): {e}")
+            return True
+
     async def request_pin(self, friendly_name: str = "UC Remote") -> bool:
-        """
-        Request PIN display from Fire TV.
-        
-        This method requests the Fire TV to display a PIN on the TV screen.
-        The PIN is NOT returned by the API for security reasons (especially on Fire TV Cube).
-        The user must manually read the PIN from their TV screen and enter it.
-        
-        Args:
-            friendly_name: Name to display on Fire TV
-        
-        Returns:
-            True if PIN display request was successful, False otherwise
-        """
         await self._ensure_session()
         
         url = f"{self._base_url}/v1/FireTV/pin/display"
         payload = {"friendlyName": friendly_name}
         
-        _LOG.info("Requesting PIN display on Fire TV at %s", self.host)
+        _LOG.info(f"Requesting PIN display on Fire TV at {self.host}:{self.port}")
         _LOG.info("User should see PIN on TV screen within 5-10 seconds")
         
         try:
@@ -116,7 +126,7 @@ class FireTVClient:
                     _LOG.info("PIN should now be visible on Fire TV screen")
                     return True
                 else:
-                    _LOG.error("❌ PIN display request failed with status: %d", response.status)
+                    _LOG.error(f"❌ PIN display request failed with status: {response.status}")
                     return False
                     
         except asyncio.TimeoutError:
@@ -124,7 +134,7 @@ class FireTVClient:
             return False
             
         except Exception as e:
-            _LOG.error("⚠️ Error requesting PIN display: %s", str(e))
+            _LOG.error(f"⚠️ Error requesting PIN display: {str(e)}")
             return False
 
     async def verify_pin(self, pin: str) -> Optional[str]:
@@ -133,7 +143,7 @@ class FireTVClient:
         url = f"{self._base_url}/v1/FireTV/pin/verify"
         payload = {"pin": pin}
         
-        _LOG.info("Verifying PIN: %s", pin)
+        _LOG.info(f"Verifying PIN: {pin}")
         
         try:
             async with self.session.post(
@@ -146,74 +156,49 @@ class FireTVClient:
                     data = await response.json()
                     token = data.get('description')
                     self.token = token
-                    _LOG.info("✅ PIN verified - Token obtained: %s", token)
+                    _LOG.info(f"✅ PIN verified - Token obtained: {token}")
                     return token
                 else:
-                    _LOG.error("PIN verification failed with status: %d", response.status)
+                    _LOG.error(f"PIN verification failed with status: {response.status}")
                     return None
         except Exception as e:
-            _LOG.error("Error verifying PIN: %s", e)
+            _LOG.error(f"Error verifying PIN: {e}")
             return None
 
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
-        """
-        Test connection to Fire TV with retry logic.
-        
-        Fire TV Cube devices may need time to wake up the REST API service,
-        so we retry multiple times with delays.
-        
-        Args:
-            max_retries: Number of connection attempts (default: 3)
-            retry_delay: Seconds to wait between retries (default: 3.0)
-        
-        Returns:
-            True if connection successful, False otherwise
-        """
         await self._ensure_session()
         
-        _LOG.info("Testing connection to %s (will retry up to %d times)", 
-                 self._base_url, max_retries)
+        _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
         
         for attempt in range(1, max_retries + 1):
             try:
-                _LOG.info("Connection attempt %d/%d to %s...", 
-                         attempt, max_retries, self.host)
+                _LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
                 
-                # Try to reach the base URL or status endpoint
                 async with self.session.get(
                     f"{self._base_url}/",
                     timeout=aiohttp.ClientTimeout(total=12)
                 ) as response:
-                    # Any response means Fire TV is reachable
                     reachable = response.status in [200, 400, 401, 404, 405]
                     if reachable:
-                        _LOG.info("✅ Fire TV is reachable at %s (attempt %d)", 
-                                 self.host, attempt)
+                        _LOG.info(f"✅ Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
                         return True
                     else:
-                        _LOG.warning("⚠️ Unexpected response status: %d (attempt %d)", 
-                                   response.status, attempt)
+                        _LOG.warning(f"⚠️ Unexpected response status: {response.status} (attempt {attempt})")
                         
             except asyncio.TimeoutError:
-                _LOG.warning("⏱️ Connection timeout to %s (attempt %d/%d)", 
-                           self.host, attempt, max_retries)
+                _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
                 
             except aiohttp.ClientConnectorError as e:
-                _LOG.warning("⚠️ Connection failed to %s (attempt %d/%d): %s", 
-                           self.host, attempt, max_retries, str(e))
+                _LOG.warning(f"⚠️ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
                 
             except Exception as e:
-                _LOG.warning("⚠️ Unexpected error (attempt %d/%d): %s", 
-                           attempt, max_retries, str(e))
+                _LOG.warning(f"⚠️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
             
-            # If this wasn't the last attempt, wait before retrying
             if attempt < max_retries:
-                _LOG.info("⏳ Waiting %.1f seconds before retry...", retry_delay)
+                _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
         
-        # All retries exhausted
-        _LOG.error("❌ Failed to connect to %s after %d attempts", 
-                  self.host, max_retries)
+        _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
         return False
 
     async def send_navigation_command(self, action: str) -> bool:
@@ -221,7 +206,7 @@ class FireTVClient:
         
         url = f"{self._base_url}/v1/FireTV?action={action}"
         
-        _LOG.debug("Sending navigation command: %s", action)
+        _LOG.debug(f"Sending navigation command: {action}")
         
         try:
             async with self.session.post(
@@ -231,13 +216,12 @@ class FireTVClient:
             ) as response:
                 success = response.status == 200
                 if success:
-                    _LOG.debug("✅ Navigation command successful: %s", action)
+                    _LOG.debug(f"✅ Navigation command successful: {action}")
                 else:
-                    _LOG.warning("❌ Navigation command failed: %s (status: %d)", 
-                               action, response.status)
+                    _LOG.warning(f"❌ Navigation command failed: {action} (status: {response.status})")
                 return success
         except Exception as e:
-            _LOG.error("Error sending navigation command %s: %s", action, e)
+            _LOG.error(f"Error sending navigation command {action}: {e}")
             return False
 
     async def send_media_command(
@@ -257,7 +241,7 @@ class FireTVClient:
                 "keyAction": {"keyActionType": key_action_type}
             }
         
-        _LOG.debug("Sending media command: %s (payload: %s)", action, payload)
+        _LOG.debug(f"Sending media command: {action} (payload: {payload})")
         
         try:
             async with self.session.post(
@@ -268,13 +252,12 @@ class FireTVClient:
             ) as response:
                 success = response.status == 200
                 if success:
-                    _LOG.debug("✅ Media command successful: %s", action)
+                    _LOG.debug(f"✅ Media command successful: {action}")
                 else:
-                    _LOG.warning("❌ Media command failed: %s (status: %d)", 
-                               action, response.status)
+                    _LOG.warning(f"❌ Media command failed: {action} (status: {response.status})")
                 return success
         except Exception as e:
-            _LOG.error("Error sending media command %s: %s", action, e)
+            _LOG.error(f"Error sending media command {action}: {e}")
             return False
 
     async def launch_app(self, package_name: str) -> bool:
@@ -282,7 +265,7 @@ class FireTVClient:
         
         url = f"{self._base_url}/v1/FireTV/app/{package_name}"
         
-        _LOG.info("Launching app: %s", package_name)
+        _LOG.info(f"Launching app: {package_name}")
         
         try:
             async with self.session.post(
@@ -292,57 +275,43 @@ class FireTVClient:
             ) as response:
                 success = response.status == 200
                 if success:
-                    _LOG.info("✅ App launch successful: %s", package_name)
+                    _LOG.info(f"✅ App launch successful: {package_name}")
                 else:
-                    _LOG.warning("❌ App launch failed: %s (status: %d)", 
-                               package_name, response.status)
+                    _LOG.warning(f"❌ App launch failed: {package_name} (status: {response.status})")
                 return success
         except Exception as e:
-            _LOG.error("Error launching app %s: %s", package_name, e)
+            _LOG.error(f"Error launching app {package_name}: {e}")
             return False
 
-    # Convenience methods for common actions
-    
     async def dpad_up(self) -> bool:
-        """Send D-Pad UP command."""
         return await self.send_navigation_command("dpad_up")
 
     async def dpad_down(self) -> bool:
-        """Send D-Pad DOWN command."""
         return await self.send_navigation_command("dpad_down")
 
     async def dpad_left(self) -> bool:
-        """Send D-Pad LEFT command."""
         return await self.send_navigation_command("dpad_left")
 
     async def dpad_right(self) -> bool:
-        """Send D-Pad RIGHT command."""
         return await self.send_navigation_command("dpad_right")
 
     async def select(self) -> bool:
-        """Send SELECT command."""
         return await self.send_navigation_command("select")
 
     async def home(self) -> bool:
-        """Send HOME command."""
         return await self.send_navigation_command("home")
 
     async def back(self) -> bool:
-        """Send BACK command."""
         return await self.send_navigation_command("back")
 
     async def menu(self) -> bool:
-        """Send MENU command."""
         return await self.send_navigation_command("menu")
 
     async def play_pause(self) -> bool:
-        """Send PLAY/PAUSE toggle command."""
         return await self.send_media_command("play")
 
     async def fast_forward(self) -> bool:
-        """Send FAST FORWARD command."""
         return await self.send_media_command("scan", direction="forward")
 
     async def rewind(self) -> bool:
-        """Send REWIND command."""
         return await self.send_media_command("scan", direction="back")
