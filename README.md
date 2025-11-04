@@ -27,7 +27,6 @@ Perfect companion to the [ADB Fire TV integration](https://github.com/unfoldedci
 | **Navigation** | ✅ Lightning fast | ⏳ Noticeable lag |
 | **App Launch** | ✅ Instant | ⏳ 1-3 seconds |
 | **Setup** | ✅ Simple PIN auth | ⚠️ ADB pairing required |
-| **Media Player** | ❌ Not supported | ✅ Supported |
 | **Power Control** | ❌ Not supported | ✅ Supported |
 
 ### 💡 Best Practice: Use Both!
