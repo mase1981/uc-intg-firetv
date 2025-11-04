@@ -1,6 +1,6 @@
 {
   "driver_id": "firetv",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "min_core_api": "0.3.0",
   "name": {
     "en": "Fire TV"
@@ -22,7 +22,7 @@
       "en": "Fire TV Configuration"
     },
     "description": {
-      "en": "Enter your Fire TV IP address. A PIN will be displayed on your TV screen."
+      "en": "Enter your Fire TV IP address and port. A PIN will be displayed on your TV screen."
     },
     "settings": [
       {
@@ -33,6 +33,22 @@
         "field": {
           "text": {
             "default": "192.168.1.100"
+          }
+        }
+      },
+      {
+        "id": "port",
+        "label": {
+          "en": "Fire TV Port"
+        },
+        "description": {
+          "en": "Default: 8080 (most devices). Try 8009 for 4K Max Gen 1 if 8080 fails."
+        },
+        "field": {
+          "number": {
+            "value": 8080,
+            "min": 1024,
+            "max": 65535
           }
         }
       }
