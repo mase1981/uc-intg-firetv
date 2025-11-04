@@ -51,7 +51,6 @@ class FireTVRemote(Remote):
 
     def _build_simple_commands(self) -> List[str]:
         commands = [
-            # Navigation commands
             'DPAD_UP',
             'DPAD_DOWN',
             'DPAD_LEFT',
@@ -60,22 +59,16 @@ class FireTVRemote(Remote):
             'HOME',
             'BACK',
             'MENU',
-            
-            # Media commands
             'PLAY_PAUSE',
             'FAST_FORWARD',
             'REWIND',
-            
-            # Top 5 app launch commands
+            'NEXT',
+            'PREVIOUS',
             'LAUNCH_NETFLIX',
             'LAUNCH_PRIME_VIDEO',
             'LAUNCH_DISNEY_PLUS',
             'LAUNCH_PLEX',
             'LAUNCH_KODI',
-            
-            # NOTE: custom_app command NOT in simple_commands
-            # Users type full command in activity: custom_app:com.package.name
-            # Handler catches it via command.startswith('custom_app:')
         ]
         
         return commands
@@ -83,23 +76,17 @@ class FireTVRemote(Remote):
     def _create_button_mapping(self) -> List[Dict]:
         mappings = []
         
-        # Core button mappings
         button_configs = [
-            # D-Pad navigation
             (Buttons.DPAD_UP, 'DPAD_UP', None),
             (Buttons.DPAD_DOWN, 'DPAD_DOWN', None),
             (Buttons.DPAD_LEFT, 'DPAD_LEFT', None),
             (Buttons.DPAD_RIGHT, 'DPAD_RIGHT', None),
             (Buttons.DPAD_MIDDLE, 'SELECT', None),
-            
-            # Navigation buttons
             (Buttons.BACK, 'BACK', None),
             (Buttons.HOME, 'HOME', 'MENU'),
-            
-            # Media controls
             (Buttons.PLAY, 'PLAY_PAUSE', None),
-            
-            # Quick app launchers on color buttons (Top 4 apps)
+            (Buttons.CHANNEL_UP, 'NEXT', None),
+            (Buttons.CHANNEL_DOWN, 'PREVIOUS', None),
             (Buttons.RED, 'LAUNCH_NETFLIX', None),
             (Buttons.GREEN, 'LAUNCH_PRIME_VIDEO', None),
             (Buttons.YELLOW, 'LAUNCH_DISNEY_PLUS', None),
@@ -135,7 +122,6 @@ class FireTVRemote(Remote):
             'name': 'Navigation',
             'grid': {'width': 4, 'height': 6},
             'items': [
-                # D-Pad layout (centered)
                 {'type': 'text', 'location': {'x': 1, 'y': 0}, 'text': 'UP',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'DPAD_UP'}}},
                 {'type': 'text', 'location': {'x': 0, 'y': 1}, 'text': 'LEFT',
@@ -146,30 +132,28 @@ class FireTVRemote(Remote):
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'DPAD_RIGHT'}}},
                 {'type': 'text', 'location': {'x': 1, 'y': 2}, 'text': 'DOWN',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'DPAD_DOWN'}}},
-                
-                # System buttons
                 {'type': 'text', 'location': {'x': 3, 'y': 0}, 'text': 'HOME',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'HOME'}}},
                 {'type': 'text', 'location': {'x': 3, 'y': 1}, 'text': 'BACK',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'BACK'}}},
                 {'type': 'text', 'location': {'x': 3, 'y': 2}, 'text': 'MENU',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'MENU'}}},
-                
-                # Media controls
+                {'type': 'text', 'location': {'x': 0, 'y': 3}, 'text': 'PREV',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PREVIOUS'}}},
+                {'type': 'text', 'location': {'x': 1, 'y': 3}, 'text': 'PLAY',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PLAY_PAUSE'}}},
+                {'type': 'text', 'location': {'x': 2, 'y': 3}, 'text': 'NEXT',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'NEXT'}}},
                 {'type': 'text', 'location': {'x': 0, 'y': 4}, 'text': 'REW',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'REWIND'}}},
-                {'type': 'text', 'location': {'x': 1, 'y': 4}, 'text': 'PLAY',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PLAY_PAUSE'}}},
                 {'type': 'text', 'location': {'x': 2, 'y': 4}, 'text': 'FWD',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'FAST_FORWARD'}}},
             ]
         }
 
     def _create_top_apps_page(self) -> Dict[str, Any]:
-        """Create page with top 5 pre-configured apps."""
         items = []
         
-        # Top 5 apps in a clean grid layout
         top_apps = [
             ('netflix', 'Netflix', 0, 0),
             ('prime_video', 'Prime', 1, 0),
@@ -189,12 +173,11 @@ class FireTVRemote(Remote):
                     'command': {'cmd_id': 'send_cmd', 'params': {'command': f'LAUNCH_{cmd_name}'}}
                 })
         
-        # Info message about custom apps
         items.append({
             'type': 'text',
             'location': {'x': 0, 'y': 3},
             'size': {'width': 4, 'height': 1},
-            'text': '→ Custom Apps Page for more →',
+            'text': 'Custom Apps Page for more',
             'command': None
         })
         
@@ -206,16 +189,8 @@ class FireTVRemote(Remote):
         }
 
     def _create_custom_apps_page(self) -> Dict[str, Any]:
-        """
-        Create page with instructions for custom app launching.
-        
-        Users create activities/buttons with commands like:
-        custom_app:com.hulu.plus
-        custom_app:com.spotify.tv.android
-        """
         items = []
         
-        # Instructions
         items.append({
             'type': 'text',
             'location': {'x': 0, 'y': 0},
@@ -224,7 +199,6 @@ class FireTVRemote(Remote):
             'command': None
         })
         
-        # Examples
         examples = [
             ('Example:\nHulu', 'custom_app:com.hulu.plus', 0, 2),
             ('Example:\nYouTube', 'custom_app:com.amazon.firetv.youtube', 2, 2),
@@ -241,7 +215,6 @@ class FireTVRemote(Remote):
                 'command': {'cmd_id': 'send_cmd', 'params': {'command': cmd}}
             })
         
-        # Help text
         items.append({
             'type': 'text',
             'location': {'x': 0, 'y': 5},
@@ -262,20 +235,18 @@ class FireTVRemote(Remote):
             _LOG.warning("API not set, cannot push state")
             return
         
-        # Check if entity is in configured_entities (subscribed)
         if not self._api.configured_entities.contains(self.id):
             _LOG.debug("Entity %s not subscribed yet, skipping state push", self.id)
             return
         
         _LOG.info("Pushing initial state for %s: ON", self.id)
         
-        # Update attributes to ON state
         self._api.configured_entities.update_attributes(
             self.id,
             {Attributes.STATE: States.ON}
         )
         
-        _LOG.info("✅ Initial state pushed successfully")
+        _LOG.info("âœ… Initial state pushed successfully")
 
     async def _handle_command(
         self,
@@ -329,16 +300,12 @@ class FireTVRemote(Remote):
     async def _execute_command(self, command: str):
         _LOG.info("Executing command: %s", command)
         
-        # Map uppercase commands to lowercase API calls
         command_lower = command.lower()
         
-        # Handle custom app launch command (following SkyQ channel_select pattern)
         if command.startswith('custom_app:'):
             try:
-                # Extract package name after colon
                 package = command.split(':', 1)[1].strip()
                 
-                # Validate package name format
                 if not validate_package_name(package):
                     _LOG.error("Invalid package name format: %s", package)
                     _LOG.error("Package must be in format: com.company.app")
@@ -348,9 +315,9 @@ class FireTVRemote(Remote):
                 success = await self._client.launch_app(package)
                 
                 if success:
-                    _LOG.info("✅ Successfully launched custom app: %s", package)
+                    _LOG.info("Successfully launched custom app: %s", package)
                 else:
-                    _LOG.warning("❌ Failed to launch custom app: %s", package)
+                    _LOG.warning("Failed to launch custom app: %s", package)
                     _LOG.warning("Check if app is installed on Fire TV")
                 
                 return
@@ -359,7 +326,6 @@ class FireTVRemote(Remote):
                 _LOG.error("Error launching custom app: %s", e)
                 return
         
-        # Navigation commands
         nav_commands = {
             'dpad_up': self._client.dpad_up,
             'dpad_down': self._client.dpad_down,
@@ -375,20 +341,21 @@ class FireTVRemote(Remote):
             await nav_commands[command_lower]()
             return
         
-        # Media commands
-        if command_lower == 'play_pause':
-            await self._client.play_pause()
-        elif command_lower == 'fast_forward':
-            await self._client.fast_forward()
-        elif command_lower == 'rewind':
-            await self._client.rewind()
+        media_commands = {
+            'play_pause': self._client.play_pause,
+            'fast_forward': self._client.fast_forward,
+            'rewind': self._client.rewind,
+            'next': self._client.next,
+            'previous': self._client.previous,
+        }
         
-        # Pre-configured app launch commands (top 5)
-        elif command.startswith('LAUNCH_'):
-            # Convert LAUNCH_NETFLIX -> netflix
+        if command_lower in media_commands:
+            await media_commands[command_lower]()
+            return
+        
+        if command.startswith('LAUNCH_'):
             app_name = command.replace('LAUNCH_', '').lower()
             
-            # Find app by matching name
             package = None
             for app_id, app_data in FIRE_TV_TOP_APPS.items():
                 if app_data['name'].upper().replace(' ', '_').replace('+', 'PLUS') == command.replace('LAUNCH_', ''):
@@ -400,6 +367,6 @@ class FireTVRemote(Remote):
                 await self._client.launch_app(package)
             else:
                 _LOG.warning("Unknown app command: %s", command)
+            return
         
-        else:
-            _LOG.warning("Unhandled command: %s", command)
+        _LOG.warning("Unhandled command: %s", command)
