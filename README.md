@@ -46,9 +46,10 @@ Together they provide the complete Fire TV experience with maximum performance!
 - 🚀 **Ultra-Fast REST API Control** - Instant response (~50ms vs 500-2000ms with ADB)
 - 🎮 **Complete Navigation** - D-Pad, Home, Back, Menu controls
 - ▶️ **Media Controls** - Play/Pause, Fast Forward, Rewind
-- 📱 **Instant App Launching** - Quick launch 30+ streaming apps
+- 📱 **Top 5 Quick Launch Apps** - One-tap access to most popular streaming apps
+- 🎯 **Custom App Launcher** - Launch ANY Fire TV app using package name
 - 🎯 **Physical Button Mapping** - Control with UC Remote hardware buttons
-- 📺 **Multi-Page UI** - Navigation, Streaming Apps, Music, Utilities
+- 📺 **Multi-Page UI** - Navigation, Top Apps, Custom Apps pages
 - 🔒 **Secure Authentication** - PIN-based token authentication
 
 ---
@@ -134,7 +135,7 @@ This gives you **instant speed** with **full features**!
 
 ### Option 2: Docker
 ```bash
-docker run -d --name uc-intg-horizon --restart unless-stopped --network host -v $(pwd)/data:/data -e UC_CONFIG_HOME=/data -e UC_INTEGRATION_INTERFACE=0.0.0.0 -e UC_INTEGRATION_HTTP_PORT=9090 -e UC_DISABLE_MDNS_PUBLISH=false ghcr.io/mase1981/uc-intg-horizon:latest
+docker run -d --name uc-intg-firetv --restart unless-stopped --network host -v $(pwd)/data:/data -e UC_CONFIG_HOME=/data -e UC_INTEGRATION_INTERFACE=0.0.0.0 -e UC_INTEGRATION_HTTP_PORT=9090 -e UC_DISABLE_MDNS_PUBLISH=false ghcr.io/mase1981/uc-intg-firetv:latest
 ```
 ```bash
 git clone https://github.com/mase1981/uc-intg-firetv.git
@@ -188,22 +189,61 @@ python -m uc_intg_firetv.driver
 - D-Pad (↑↓←→), Select, Home, Back, Menu
 
 ### Media  
-- Play/Pause, Fast Forward, Rewind
+- Play/Pause, Fast Forward, Rewind, Next, Previous
 
-### Apps (30+)
-Netflix, Prime Video, YouTube, Disney+, Hulu, Max, Apple TV+, Spotify, Plex, and more
+### Top 5 Pre-configured Apps
+- **Netflix** - Quick launch button
+- **Prime Video** - Quick launch button
+- **Disney+** - Quick launch button
+- **Plex** - Quick launch button
+- **Kodi** - Quick launch button
+
+### Launch ANY App with Custom Command
+Use the `custom_app` command to launch any Fire TV app:
+
+**Format:** `custom_app:com.package.name`
+
+**Popular Examples:**
+- YouTube: `custom_app:com.amazon.firetv.youtube`
+- Hulu: `custom_app:com.hulu.plus`
+- HBO Max: `custom_app:com.wbd.stream`
+- Apple TV+: `custom_app:com.apple.atve.amazon.appletv`
+- Spotify: `custom_app:com.spotify.tv.android`
+- VLC: `custom_app:org.videolan.vlc`
+- Silk Browser: `custom_app:com.amazon.cloud9.silkbrowser`
+
+**How to Find Package Names:**
+1. Open Fire TV **Settings** → **Applications** → **Manage Installed Applications**
+2. Select your app → Package name shown at bottom
+3. Use format: `custom_app:package.name.here`
 
 ---
 
 ## 🎯 Activity Usage
 
-All commands available as simple commands:
+All commands available as simple commands in UC Remote activities:
 
-- `DPAD_UP`, `SELECT`, `HOME`, `BACK`
+### Navigation Commands
+- `DPAD_UP`, `DPAD_DOWN`, `DPAD_LEFT`, `DPAD_RIGHT`
+- `SELECT`, `HOME`, `BACK`, `MENU`
+
+### Media Commands
 - `PLAY_PAUSE`, `FAST_FORWARD`, `REWIND`
-- `LAUNCH_NETFLIX`, `LAUNCH_YOUTUBE`, etc.
+- `NEXT`, `PREVIOUS`
 
-**Example Activity:**
+### Top 5 App Commands
+- `LAUNCH_NETFLIX`
+- `LAUNCH_PRIME_VIDEO`
+- `LAUNCH_DISNEY_PLUS`
+- `LAUNCH_PLEX`
+- `LAUNCH_KODI`
+
+### Custom App Commands
+Launch any app using: `custom_app:com.package.name`
+
+**Example Activity Sequences:**
+
+**Basic Navigation:**
 ```yaml
 1. LAUNCH_NETFLIX
 2. Wait 2 seconds
@@ -211,9 +251,29 @@ All commands available as simple commands:
 4. SELECT
 ```
 
+**Launch Custom App:**
+```yaml
+1. custom_app:com.amazon.firetv.youtube
+2. Wait 3 seconds
+3. DPAD_RIGHT
+4. SELECT
+```
+
+**Multi-Step Flow:**
+```yaml
+1. HOME
+2. Wait 1 second
+3. custom_app:com.spotify.tv.android
+4. Wait 2 seconds
+5. DPAD_DOWN
+6. DPAD_DOWN
+7. SELECT
+8. PLAY_PAUSE
+```
+
 ---
 
-## 🐛 Troubleshooting
+## 🛠 Troubleshooting
 
 ### Fire TV Not Found
 - Verify IP address
@@ -235,6 +295,13 @@ All commands available as simple commands:
 - Try HOME button
 - View logs
 - Restart integration
+
+### Custom App Not Launching
+- Verify app is installed on Fire TV
+- Check package name spelling (case-sensitive)
+- Use format: `custom_app:com.package.name`
+- View logs for error messages
+- Test with pre-configured top 5 apps first
 
 ### Entity Shows OFF/Unknown
 - Check logs
@@ -279,19 +346,30 @@ python -m uc_intg_firetv.driver
 
 ## 🛠️ Development
 
-### Add Apps
+### Add Pre-configured Apps
 
-Edit `uc_intg_firetv/apps.py`:
+To add more apps to the top 5 quick launch list, edit `uc_intg_firetv/apps.py`:
 
 ```python
-FIRE_TV_APPS = {
+FIRE_TV_TOP_APPS = {
     'your_app': {
         'name': 'Your App',
         'package': 'com.example.app',
         'category': 'streaming',
+        'icon': 'uc:tv',
     },
 }
 ```
+
+**Note:** Users can launch ANY app without modifying code using `custom_app:com.package.name`
+
+### Custom App Command Format
+
+The integration supports launching any Fire TV app dynamically:
+- **Command format**: `custom_app:com.package.name`
+- **Validation**: Automatic package name format validation
+- **Error handling**: Logs invalid package names
+- **No code changes needed**: Works with any installed app
 
 ### Build Release
 
@@ -300,8 +378,6 @@ git tag v0.2.0
 git push origin v0.2.0
 # GitHub Actions builds automatically
 ```
-
----
 
 ---
 
@@ -320,7 +396,7 @@ git push origin v0.2.0
 
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-pink?style=for-the-badge&logo=github)](https://github.com/sponsors/mase1981)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/mase1981)
-[![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/meiremiyara)
+[![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/meirmiyara)
 
 Your support helps maintain this integration. Thank you! ❤️
 
