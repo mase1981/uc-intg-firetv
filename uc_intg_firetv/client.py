@@ -24,16 +24,17 @@ class FireTVClient:
         self.api_key = "0987654321"
         self.session: Optional[aiohttp.ClientSession] = None
         
+        # Determine if localhost (simulator)
         if host.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
-            protocol = "http"
             self._use_https = False
+            self._base_url = f"http://{self.host}:{self.port}"
+            self._wake_url = f"http://{self.host}:{self.port}/apps/FireTVRemote"
             _LOG.info("Using HTTP for simulator/localhost")
         else:
-            protocol = "https"
             self._use_https = True
-            _LOG.info("Using HTTPS for Fire TV device")
-        
-        self._base_url = f"{protocol}://{self.host}:{self.port}"
+            self._base_url = f"https://{self.host}:{self.port}"
+            self._wake_url = f"http://{self.host}:8009/apps/FireTVRemote"
+            _LOG.info(f"Using HTTPS for Fire TV device (control: {self.port}, wake: 8009)")
 
     async def __aenter__(self):
         await self._ensure_session()
@@ -80,22 +81,26 @@ class FireTVClient:
     async def wake_up(self) -> bool:
         await self._ensure_session()
         
-        url = f"{self._base_url}/apps/FireTVRemote"
-        
-        _LOG.info(f"Sending wake-up POST to Fire TV at {self.host}:{self.port}")
+        _LOG.info(f"Sending wake-up POST to Fire TV")
+        _LOG.info(f"Wake-up URL: {self._wake_url}")
         
         try:
             async with self.session.post(
-                url,
-                headers=self._get_headers(include_token=False),
+                self._wake_url,
+                # Note: wake-up doesn't need API key or token headers
+                headers={
+                    "User-Agent": "okhttp/4.10.0",
+                    "Content-Type": "text/plain; charset=utf-8",
+                    "Content-Length": "0"
+                },
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
                 if response.status in [200, 201, 204]:
-                    _LOG.info(f"âœ… Wake-up successful: {response.status}")
+                    _LOG.info(f"✅ Wake-up successful: {response.status}")
                     return True
                 else:
                     _LOG.warning(f"Wake-up returned status: {response.status}")
-                    return True
+                    return True  # Device may already be awake
                     
         except asyncio.TimeoutError:
             _LOG.warning("Wake-up timeout (device may already be awake)")
@@ -122,19 +127,19 @@ class FireTVClient:
                 timeout=aiohttp.ClientTimeout(total=15)
             ) as response:
                 if response.status == 200:
-                    _LOG.info("âœ… PIN display request successful")
+                    _LOG.info("✅ PIN display request successful")
                     _LOG.info("PIN should now be visible on Fire TV screen")
                     return True
                 else:
-                    _LOG.error(f"âŒ PIN display request failed with status: {response.status}")
+                    _LOG.error(f"❌ PIN display request failed with status: {response.status}")
                     return False
                     
         except asyncio.TimeoutError:
-            _LOG.error("â±ï¸ PIN display request timeout")
+            _LOG.error("⏱️ PIN display request timeout")
             return False
             
         except Exception as e:
-            _LOG.error(f"âš ï¸ Error requesting PIN display: {str(e)}")
+            _LOG.error(f"❌️ Error requesting PIN display: {str(e)}")
             return False
 
     async def verify_pin(self, pin: str) -> Optional[str]:
@@ -156,7 +161,7 @@ class FireTVClient:
                     data = await response.json()
                     token = data.get('description')
                     self.token = token
-                    _LOG.info(f"âœ… PIN verified - Token obtained: {token}")
+                    _LOG.info(f"✅ PIN verified - Token obtained: {token}")
                     return token
                 else:
                     _LOG.error(f"PIN verification failed with status: {response.status}")
@@ -180,25 +185,25 @@ class FireTVClient:
                 ) as response:
                     reachable = response.status in [200, 400, 401, 404, 405]
                     if reachable:
-                        _LOG.info(f"âœ… Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
+                        _LOG.info(f"✅ Fire TV REST API is reachable at {self.host}:{self.port} (attempt {attempt})")
                         return True
                     else:
-                        _LOG.warning(f"âš ï¸ Unexpected response status: {response.status} (attempt {attempt})")
+                        _LOG.warning(f"❌️ Unexpected response status: {response.status} (attempt {attempt})")
                         
             except asyncio.TimeoutError:
-                _LOG.warning(f"â±ï¸ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
+                _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
                 
             except aiohttp.ClientConnectorError as e:
-                _LOG.warning(f"âš ï¸ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
+                _LOG.warning(f"❌️ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
                 
             except Exception as e:
-                _LOG.warning(f"âš ï¸ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
+                _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
             
             if attempt < max_retries:
-                _LOG.info(f"â³ Waiting {retry_delay} seconds before retry...")
+                _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
         
-        _LOG.error(f"âŒ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
+        _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
         return False
 
     async def send_navigation_command(self, action: str) -> bool:
@@ -216,9 +221,9 @@ class FireTVClient:
             ) as response:
                 success = response.status == 200
                 if success:
-                    _LOG.debug(f"âœ… Navigation command successful: {action}")
+                    _LOG.debug(f"✅ Navigation command successful: {action}")
                 else:
-                    _LOG.warning(f"âŒ Navigation command failed: {action} (status: {response.status})")
+                    _LOG.warning(f"❌ Navigation command failed: {action} (status: {response.status})")
                 return success
         except Exception as e:
             _LOG.error(f"Error sending navigation command {action}: {e}")
@@ -230,6 +235,7 @@ class FireTVClient:
         direction: Optional[str] = None,
         key_action_type: str = "keyDown"
     ) -> bool:
+        """Send media command using HTTPS REST API."""
         await self._ensure_session()
         
         url = f"{self._base_url}/v1/media?action={action}"
@@ -252,15 +258,16 @@ class FireTVClient:
             ) as response:
                 success = response.status == 200
                 if success:
-                    _LOG.debug(f"âœ… Media command successful: {action}")
+                    _LOG.debug(f"✅ Media command successful: {action}")
                 else:
-                    _LOG.warning(f"âŒ Media command failed: {action} (status: {response.status})")
+                    _LOG.warning(f"❌ Media command failed: {action} (status: {response.status})")
                 return success
         except Exception as e:
             _LOG.error(f"Error sending media command {action}: {e}")
             return False
 
     async def launch_app(self, package_name: str) -> bool:
+        """Launch app using HTTPS REST API."""
         await self._ensure_session()
         
         url = f"{self._base_url}/v1/FireTV/app/{package_name}"
@@ -275,9 +282,9 @@ class FireTVClient:
             ) as response:
                 success = response.status == 200
                 if success:
-                    _LOG.info(f"âœ… App launch successful: {package_name}")
+                    _LOG.info(f"✅ App launch successful: {package_name}")
                 else:
-                    _LOG.warning(f"âŒ App launch failed: {package_name} (status: {response.status})")
+                    _LOG.warning(f"❌ App launch failed: {package_name} (status: {response.status})")
                 return success
         except Exception as e:
             _LOG.error(f"Error launching app {package_name}: {e}")
