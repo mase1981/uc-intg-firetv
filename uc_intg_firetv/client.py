@@ -19,7 +19,7 @@ _LOG = logging.getLogger(__name__)
 class FireTVClient:
     def __init__(self, host: str, port: int = 8080, token: Optional[str] = None):
         self.host = host
-        self.port = port
+        self.port = port  # This is the HTTPS control port (8080)
         self.token = token
         self.api_key = "0987654321"
         self.session: Optional[aiohttp.ClientSession] = None
@@ -110,6 +110,50 @@ class FireTVClient:
             _LOG.warning(f"Wake-up error (device may already be awake): {e}")
             return True
 
+    async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
+        await self._ensure_session()
+        
+        _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
+        _LOG.info("IMPORTANT: Testing actual API endpoint, not root (Stick compatibility)")
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                _LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
+                test_url = f"{self._base_url}/v1/FireTV/pin/display"
+                async with self.session.post(
+                    test_url,
+                    headers=self._get_headers(include_token=False),
+                    json={"friendlyName": "UC Remote Connection Test"},
+                    timeout=aiohttp.ClientTimeout(total=12)
+                ) as response:
+                    reachable = response.status in [200, 400, 401, 404, 405]
+                    
+                    if reachable:
+                        _LOG.info(f"✅ Fire TV REST API is reachable at {self.host}:{self.port} (status: {response.status})")
+                        _LOG.info(f"API endpoint test successful on attempt {attempt}")
+                        return True
+                    elif response.status == 403:
+                        _LOG.warning(f"⚠️  API endpoint returned 403 (attempt {attempt})")
+                        _LOG.warning("This may indicate authentication or security restrictions")
+                    else:
+                        _LOG.warning(f"❌️ Unexpected response status: {response.status} (attempt {attempt})")
+                        
+            except asyncio.TimeoutError:
+                _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
+                
+            except aiohttp.ClientConnectorError as e:
+                _LOG.warning(f"❌️ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
+                
+            except Exception as e:
+                _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
+            
+            if attempt < max_retries:
+                _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
+                await asyncio.sleep(retry_delay)
+        
+        _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
+        return False
+
     async def request_pin(self, friendly_name: str = "UC Remote") -> bool:
         await self._ensure_session()
         
@@ -169,42 +213,6 @@ class FireTVClient:
         except Exception as e:
             _LOG.error(f"Error verifying PIN: {e}")
             return None
-
-    async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
-        await self._ensure_session()
-        
-        _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
-        
-        for attempt in range(1, max_retries + 1):
-            try:
-                _LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
-                
-                async with self.session.get(
-                    f"{self._base_url}/",
-                    timeout=aiohttp.ClientTimeout(total=12)
-                ) as response:
-                    reachable = response.status in [200, 400, 401, 404, 405]
-                    if reachable:
-                        _LOG.info(f"✅ Fire TV REST API is reachable at {self.host}:{self.port} (attempt {attempt})")
-                        return True
-                    else:
-                        _LOG.warning(f"❌️ Unexpected response status: {response.status} (attempt {attempt})")
-                        
-            except asyncio.TimeoutError:
-                _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
-                
-            except aiohttp.ClientConnectorError as e:
-                _LOG.warning(f"❌️ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
-                
-            except Exception as e:
-                _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
-            
-            if attempt < max_retries:
-                _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
-                await asyncio.sleep(retry_delay)
-        
-        _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
-        return False
 
     async def send_navigation_command(self, action: str) -> bool:
         await self._ensure_session()
