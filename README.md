@@ -409,6 +409,7 @@ MIT License - See [LICENSE](LICENSE) file
 
 - **Developer**: [Meir Miyara](https://www.linkedin.com/in/meirmiyara/)
 - **Framework**: [Unfolded Circle ucapi](https://github.com/unfoldedcircle/integration-python-library)
+- **SLC-Josh for his incredible find for Rest API x Fire TV**: [SLC-Josh GitHub](https://github.com/SLC-Josh/)
 
 ---
 
