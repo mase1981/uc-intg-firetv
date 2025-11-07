@@ -17,17 +17,21 @@ import certifi
 _LOG = logging.getLogger(__name__)
 
 
+class TokenInvalidError(Exception):
+    """Raised when the authentication token is invalid or expired."""
+    pass
+
+
 class FireTVClient:
     def __init__(self, host: str, port: int = 8080, token: Optional[str] = None):
         self.host = host
-        self.port = port  # This is the HTTPS control port (8080)
+        self.port = port
         self.token = token
         self.api_key = "0987654321"
         self.session: Optional[aiohttp.ClientSession] = None
         self._last_command_time: float = 0
-        self._wake_timeout: float = 25 * 60  # 25 minutes - wake if idle this long
+        self._wake_timeout: float = 25 * 60
         
-        # Determine if localhost (simulator)
         if host.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
             self._use_https = False
             self._base_url = f"http://{self.host}:{self.port}"
@@ -35,9 +39,7 @@ class FireTVClient:
             _LOG.info("Using HTTP for simulator/localhost")
         else:
             self._use_https = True
-            # CRITICAL: Control API uses HTTPS on configured port (typically 8080)
             self._base_url = f"https://{self.host}:{self.port}"
-            # CRITICAL: Wake-up ALWAYS uses HTTP on port 8009 (DIAL protocol)
             self._wake_url = f"http://{self.host}:8009/apps/FireTVRemote"
             _LOG.info(f"Using HTTPS for Fire TV device (control: {self.port}, wake: 8009)")
 
@@ -49,7 +51,6 @@ class FireTVClient:
         await self.close()
 
     async def _ensure_session(self):
-        """Ensure we have a valid aiohttp session, recreating if needed."""
         if self.session is None or self.session.closed:
             if self._use_https:
                 ssl_context = ssl.create_default_context(cafile=certifi.where())
@@ -68,7 +69,6 @@ class FireTVClient:
             _LOG.debug(f"HTTP session created for {self.host}:{self.port}")
 
     async def _recreate_session(self):
-        """Force recreate the session - useful after connection errors."""
         _LOG.debug("Recreating HTTP session...")
         if self.session and not self.session.closed:
             await self.session.close()
@@ -93,12 +93,10 @@ class FireTVClient:
         return headers
 
     def _should_wake_device(self) -> bool:
-        """Determine if device should be woken based on inactivity time."""
         import time
         current_time = time.time()
         time_since_last_command = current_time - self._last_command_time
         
-        # Wake if never commanded or idle for more than threshold
         should_wake = (self._last_command_time == 0 or 
                       time_since_last_command > self._wake_timeout)
         
@@ -108,20 +106,10 @@ class FireTVClient:
         return should_wake
 
     def _update_command_time(self):
-        """Update last successful command time."""
         import time
         self._last_command_time = time.time()
 
     async def wake_up(self) -> bool:
-        """
-        Wake up Fire TV using DIAL protocol.
-        
-        CRITICAL: This MUST use HTTP on port 8009, NOT HTTPS on port 8080!
-        This is the DIAL protocol wake-up endpoint that works on ALL Fire TV models.
-        
-        Returns:
-            True if wake-up successful or device already awake
-        """
         await self._ensure_session()
         
         _LOG.info(f"Sending wake-up POST to Fire TV")
@@ -130,7 +118,6 @@ class FireTVClient:
         try:
             async with self.session.post(
                 self._wake_url,
-                # Note: wake-up doesn't need API key or token headers
                 headers={
                     "User-Agent": "okhttp/4.10.0",
                     "Content-Type": "text/plain; charset=utf-8",
@@ -143,7 +130,7 @@ class FireTVClient:
                     return True
                 else:
                     _LOG.debug(f"Wake-up returned status: {response.status} (device may already be awake)")
-                    return True  # Device may already be awake
+                    return True
                     
         except asyncio.TimeoutError:
             _LOG.debug("Wake-up timeout (device may already be awake)")
@@ -154,12 +141,6 @@ class FireTVClient:
             return True
 
     async def request_pin(self, friendly_name: str = "UC Remote") -> bool:
-        """
-        Request PIN display on Fire TV.
-        
-        Uses HTTPS on configured port (typically 8080).
-        Device must be awake before calling this.
-        """
         await self._ensure_session()
         
         url = f"{self._base_url}/v1/FireTV/pin/display"
@@ -192,11 +173,6 @@ class FireTVClient:
             return False
 
     async def verify_pin(self, pin: str) -> Optional[str]:
-        """
-        Verify PIN and get authentication token.
-        
-        Uses HTTPS on configured port (typically 8080).
-        """
         await self._ensure_session()
         
         url = f"{self._base_url}/v1/FireTV/pin/verify"
@@ -216,7 +192,6 @@ class FireTVClient:
                     token = data.get('description')
                     self.token = token
                     _LOG.info(f"✅ PIN verified - Token obtained: {token}")
-                    self._update_command_time()  # Mark as active after auth
                     return token
                 else:
                     _LOG.error(f"PIN verification failed with status: {response.status}")
@@ -226,36 +201,21 @@ class FireTVClient:
             return None
 
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
-        """
-        Test connection to Fire TV REST API.
-        
-        CRITICAL: This tests the HTTPS REST API on configured port (8080),
-        NOT the wake-up endpoint on port 8009.
-        
-        Tests actual API endpoint for Fire TV Stick compatibility.
-        """
         await self._ensure_session()
         
-        # Test actual API endpoint instead of root (Fire TV Stick compatibility)
-        test_url = f"{self._base_url}/v1/FireTV/pin/display"
-        
         _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
-        _LOG.info("IMPORTANT: Testing actual API endpoint, not root (Stick compatibility)")
         
         for attempt in range(1, max_retries + 1):
             try:
                 _LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
                 
-                # Use POST to actual API endpoint (more reliable for Fire TV Stick)
-                async with self.session.post(
-                    test_url,
-                    headers=self._get_headers(include_token=False),
-                    json={"friendlyName": "UC Remote"},
+                async with self.session.get(
+                    f"{self._base_url}/",
                     timeout=aiohttp.ClientTimeout(total=12)
                 ) as response:
-                    if response.status in [200, 400, 401, 404, 405]:
-                        _LOG.info(f"✅ Fire TV REST API is reachable at {self.host}:{self.port} (status: {response.status})")
-                        _LOG.info(f"API endpoint test successful on attempt {attempt}")
+                    reachable = response.status in [200, 400, 401, 404, 405]
+                    if reachable:
+                        _LOG.info(f"✅ Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
                         return True
                     else:
                         _LOG.warning(f"❌️ Unexpected response status: {response.status} (attempt {attempt})")
@@ -277,37 +237,18 @@ class FireTVClient:
         return False
 
     async def _send_command_with_retry(self, command_func, command_name: str, max_retries: int = 2):
-        """
-        Send command with automatic wake-up and retry logic.
-        
-        Args:
-            command_func: Async function that sends the actual command
-            command_name: Name of command for logging
-            max_retries: Number of retry attempts after wake-up
-            
-        Returns:
-            Result from command_func
-            
-        Raises:
-            TokenInvalidError: If authentication token is invalid/expired
-        """
-        # Wake device if it's been idle
         if self._should_wake_device():
             await self.wake_up()
-            await asyncio.sleep(2)  # Give device time to wake up
-            
-            # Recreate session after wake (session might be stale)
+            await asyncio.sleep(2)
             await self._recreate_session()
         
-        # Try command with retries
         for attempt in range(1, max_retries + 1):
             try:
                 result = await command_func()
-                self._update_command_time()  # Mark successful command time
+                self._update_command_time()
                 return result
                 
             except aiohttp.ClientResponseError as e:
-                # Check for authentication errors
                 if e.status in [401, 403]:
                     _LOG.error(f"❌ AUTHENTICATION FAILED: Token is invalid or expired")
                     _LOG.error(f"❌ Status {e.status}: {e.message}")
@@ -337,14 +278,7 @@ class FireTVClient:
                 _LOG.error(f"Unexpected error in {command_name}: {e}")
                 raise
 
-
-class TokenInvalidError(Exception):
-    """Raised when the authentication token is invalid or expired."""
-    pass
-
     async def send_navigation_command(self, action: str) -> bool:
-        """Send navigation command using HTTPS REST API with auto-wake."""
-        
         async def _send():
             await self._ensure_session()
             url = f"{self._base_url}/v1/FireTV?action={action}"
@@ -356,7 +290,6 @@ class TokenInvalidError(Exception):
                 headers=self._get_headers(),
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
-                # Raise for HTTP errors (including 401/403)
                 response.raise_for_status()
                 
                 success = response.status == 200
@@ -369,7 +302,7 @@ class TokenInvalidError(Exception):
         try:
             return await self._send_command_with_retry(_send, f"navigation:{action}")
         except TokenInvalidError:
-            raise  # Re-raise token errors
+            raise
         except Exception as e:
             _LOG.error(f"Error sending navigation command {action}: {e}")
             return False
@@ -380,8 +313,6 @@ class TokenInvalidError(Exception):
         direction: Optional[str] = None,
         key_action_type: str = "keyDown"
     ) -> bool:
-        """Send media command using HTTPS REST API with auto-wake."""
-        
         async def _send():
             await self._ensure_session()
             url = f"{self._base_url}/v1/media?action={action}"
@@ -401,7 +332,6 @@ class TokenInvalidError(Exception):
                 json=payload if payload else None,
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
-                # Raise for HTTP errors (including 401/403)
                 response.raise_for_status()
                 
                 success = response.status == 200
@@ -414,14 +344,12 @@ class TokenInvalidError(Exception):
         try:
             return await self._send_command_with_retry(_send, f"media:{action}")
         except TokenInvalidError:
-            raise  # Re-raise token errors
+            raise
         except Exception as e:
             _LOG.error(f"Error sending media command {action}: {e}")
             return False
 
     async def launch_app(self, package_name: str) -> bool:
-        """Launch app using HTTPS REST API with auto-wake."""
-        
         async def _send():
             await self._ensure_session()
             url = f"{self._base_url}/v1/FireTV/app/{package_name}"
@@ -433,7 +361,6 @@ class TokenInvalidError(Exception):
                 headers=self._get_headers(),
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
-                # Raise for HTTP errors (including 401/403)
                 response.raise_for_status()
                 
                 success = response.status == 200
@@ -446,7 +373,7 @@ class TokenInvalidError(Exception):
         try:
             return await self._send_command_with_retry(_send, f"app:{package_name}")
         except TokenInvalidError:
-            raise  # Re-raise token errors
+            raise
         except Exception as e:
             _LOG.error(f"Error launching app {package_name}: {e}")
             return False
