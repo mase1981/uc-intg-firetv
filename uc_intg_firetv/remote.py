@@ -13,6 +13,7 @@ from ucapi.remote import Attributes, Features, Remote, States
 from ucapi.ui import Buttons
 
 from uc_intg_firetv.apps import FIRE_TV_TOP_APPS, get_app_package, validate_package_name
+from uc_intg_firetv.client import TokenInvalidError
 
 _LOG = logging.getLogger(__name__)
 
@@ -246,7 +247,7 @@ class FireTVRemote(Remote):
             {Attributes.STATE: States.ON}
         )
         
-        _LOG.info("âœ… Initial state pushed successfully")
+        _LOG.info("Ã¢Å“â€¦ Initial state pushed successfully")
 
     async def _handle_command(
         self,
@@ -294,6 +295,12 @@ class FireTVRemote(Remote):
             return StatusCodes.OK
             
         except Exception as e:
+        except TokenInvalidError as e:
+            _LOG.error("❌ AUTHENTICATION TOKEN INVALID: %s", e)
+            _LOG.error("❌ User must re-run setup to obtain new authentication token")
+            _LOG.error("❌ This typically happens if pairing was removed from Fire TV settings")
+            return StatusCodes.UNAUTHORIZED
+            
             _LOG.error("Error executing command: %s", e, exc_info=True)
             return StatusCodes.SERVER_ERROR
 
