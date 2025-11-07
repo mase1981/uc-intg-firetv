@@ -1,16 +1,6 @@
 """
 Fire TV REST API Client Implementation.
 
-CRITICAL FIX: Fire TV uses TWO different protocols on TWO different ports:
-1. Wake-up: HTTP on port 8009 (DIAL protocol) - /apps/FireTVRemote
-2. Control: HTTPS on port 8080 (REST API) - /v1/FireTV/*
-
-IMPORTANT: Fire TV devices enter sleep mode after ~30 minutes of inactivity.
-All commands must wake the device first before sending control commands.
-
-Token Persistence: Fire TV authentication tokens persist indefinitely until
-manually revoked from Fire TV settings. Tokens survive device sleep/wake and reboots.
-
 :copyright: (c) 2025 by Meir Miyara.
 :license: MIT, see LICENSE for more details.
 """

@@ -294,13 +294,13 @@ class FireTVRemote(Remote):
             
             return StatusCodes.OK
             
-        except Exception as e:
         except TokenInvalidError as e:
             _LOG.error("❌ AUTHENTICATION TOKEN INVALID: %s", e)
             _LOG.error("❌ User must re-run setup to obtain new authentication token")
             _LOG.error("❌ This typically happens if pairing was removed from Fire TV settings")
             return StatusCodes.UNAUTHORIZED
             
+        except Exception as e:
             _LOG.error("Error executing command: %s", e, exc_info=True)
             return StatusCodes.SERVER_ERROR
 
