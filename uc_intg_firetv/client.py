@@ -213,7 +213,7 @@ class FireTVClient:
                     f"{self._base_url}/",
                     timeout=aiohttp.ClientTimeout(total=12)
                 ) as response:
-                    reachable = response.status in [200, 400, 401, 404, 405]
+                    reachable = response.status in [200, 400, 401, 403, 404, 405]
                     if reachable:
                         _LOG.info(f"✅ Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
                         return True
