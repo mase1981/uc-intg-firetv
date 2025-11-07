@@ -1,6 +1,6 @@
 {
   "driver_id": "firetv",
-  "version": "0.2.0",
+  "version": "0.2.4",
   "min_core_api": "0.3.0",
   "name": {
     "en": "Fire TV"
