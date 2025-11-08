@@ -402,17 +402,32 @@ class FireTVClient:
     async def menu(self) -> bool:
         return await self.send_navigation_command("menu")
 
+    async def epg(self) -> bool:
+        return await self.send_navigation_command("epg")
+
+    async def volume_up(self) -> bool:
+        return await self.send_navigation_command("volume_up")
+
+    async def volume_down(self) -> bool:
+        return await self.send_navigation_command("volume_down")
+
+    async def mute(self) -> bool:
+        return await self.send_navigation_command("mute")
+
+    async def power(self) -> bool:
+        return await self.send_navigation_command("power")
+
+    async def sleep(self) -> bool:
+        return await self.send_navigation_command("sleep")
+
     async def play_pause(self) -> bool:
         return await self.send_media_command("play")
+
+    async def pause(self) -> bool:
+        return await self.send_media_command("pause")
 
     async def fast_forward(self) -> bool:
         return await self.send_media_command("scan", direction="forward")
 
     async def rewind(self) -> bool:
         return await self.send_media_command("scan", direction="back")
-
-    async def next(self) -> bool:
-        return await self.send_media_command("skip_forward")
-
-    async def previous(self) -> bool:
-        return await self.send_media_command("skip_back")
