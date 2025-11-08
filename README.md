@@ -63,11 +63,6 @@ The Fire TV REST API has inherent limitations:
 - REST API doesn't expose power commands
 - **Solution**: Use IR blaster, HDMI-CEC, or [ADB integration](https://github.com/unfoldedcircle/integration-androidtv)
 
-#### ❌ No Media Player Entity
-- **Cannot create media player entity** - only remote entity
-- REST API doesn't provide playback state or media info
-- Cannot see what's playing or playback position
-- **Solution**: Use [ADB integration](https://github.com/unfoldedcircle/integration-androidtv) for media player
 
 #### ❌ No Volume Control
 - Volume controlled by TV/AVR, not Fire TV
