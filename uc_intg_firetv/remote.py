@@ -43,11 +43,9 @@ class FireTVRemote(Remote):
         self._api = None
 
     def set_client(self, client):
-        """Set the Fire TV client."""
         self._client = client
 
     def set_api(self, api):
-        """Set the integration API for state updates."""
         self._api = api
 
     def _build_simple_commands(self) -> List[str]:
@@ -60,11 +58,16 @@ class FireTVRemote(Remote):
             'HOME',
             'BACK',
             'MENU',
+            'EPG',
+            'VOLUME_UP',
+            'VOLUME_DOWN',
+            'MUTE',
+            'POWER',
+            'SLEEP',
             'PLAY_PAUSE',
+            'PAUSE',
             'FAST_FORWARD',
             'REWIND',
-            'NEXT',
-            'PREVIOUS',
             'LAUNCH_NETFLIX',
             'LAUNCH_PRIME_VIDEO',
             'LAUNCH_DISNEY_PLUS',
@@ -86,8 +89,10 @@ class FireTVRemote(Remote):
             (Buttons.BACK, 'BACK', None),
             (Buttons.HOME, 'HOME', 'MENU'),
             (Buttons.PLAY, 'PLAY_PAUSE', None),
-            (Buttons.CHANNEL_UP, 'NEXT', None),
-            (Buttons.CHANNEL_DOWN, 'PREVIOUS', None),
+            (Buttons.VOLUME_UP, 'VOLUME_UP', None),
+            (Buttons.VOLUME_DOWN, 'VOLUME_DOWN', None),
+            (Buttons.MUTE, 'MUTE', None),
+            (Buttons.POWER, 'POWER', None),
             (Buttons.RED, 'LAUNCH_NETFLIX', None),
             (Buttons.GREEN, 'LAUNCH_PRIME_VIDEO', None),
             (Buttons.YELLOW, 'LAUNCH_DISNEY_PLUS', None),
@@ -139,16 +144,24 @@ class FireTVRemote(Remote):
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'BACK'}}},
                 {'type': 'text', 'location': {'x': 3, 'y': 2}, 'text': 'MENU',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'MENU'}}},
-                {'type': 'text', 'location': {'x': 0, 'y': 3}, 'text': 'PREV',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PREVIOUS'}}},
-                {'type': 'text', 'location': {'x': 1, 'y': 3}, 'text': 'PLAY',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PLAY_PAUSE'}}},
-                {'type': 'text', 'location': {'x': 2, 'y': 3}, 'text': 'NEXT',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'NEXT'}}},
+                {'type': 'text', 'location': {'x': 0, 'y': 3}, 'text': 'VOL-',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'VOLUME_DOWN'}}},
+                {'type': 'text', 'location': {'x': 1, 'y': 3}, 'text': 'MUTE',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'MUTE'}}},
+                {'type': 'text', 'location': {'x': 2, 'y': 3}, 'text': 'VOL+',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'VOLUME_UP'}}},
                 {'type': 'text', 'location': {'x': 0, 'y': 4}, 'text': 'REW',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'REWIND'}}},
+                {'type': 'text', 'location': {'x': 1, 'y': 4}, 'text': 'PLAY',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PLAY_PAUSE'}}},
                 {'type': 'text', 'location': {'x': 2, 'y': 4}, 'text': 'FWD',
                  'command': {'cmd_id': 'send_cmd', 'params': {'command': 'FAST_FORWARD'}}},
+                {'type': 'text', 'location': {'x': 0, 'y': 5}, 'text': 'POWER',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'POWER'}}},
+                {'type': 'text', 'location': {'x': 1, 'y': 5}, 'text': 'SLEEP',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'SLEEP'}}},
+                {'type': 'text', 'location': {'x': 2, 'y': 5}, 'text': 'EPG',
+                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'EPG'}}},
             ]
         }
 
@@ -247,7 +260,7 @@ class FireTVRemote(Remote):
             {Attributes.STATE: States.ON}
         )
         
-        _LOG.info("Ã¢Å“â€¦ Initial state pushed successfully")
+        _LOG.info("✅ Initial state pushed successfully")
 
     async def _handle_command(
         self,
@@ -342,6 +355,12 @@ class FireTVRemote(Remote):
             'home': self._client.home,
             'back': self._client.back,
             'menu': self._client.menu,
+            'epg': self._client.epg,
+            'volume_up': self._client.volume_up,
+            'volume_down': self._client.volume_down,
+            'mute': self._client.mute,
+            'power': self._client.power,
+            'sleep': self._client.sleep,
         }
         
         if command_lower in nav_commands:
@@ -350,10 +369,9 @@ class FireTVRemote(Remote):
         
         media_commands = {
             'play_pause': self._client.play_pause,
+            'pause': self._client.pause,
             'fast_forward': self._client.fast_forward,
             'rewind': self._client.rewind,
-            'next': self._client.next,
-            'previous': self._client.previous,
         }
         
         if command_lower in media_commands:
