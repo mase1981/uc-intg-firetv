@@ -64,7 +64,7 @@ async def _initialize_entities():
                 _entities_ready = False
                 return
             
-            _LOG.info(f"✅ Connected to Fire TV at {host}:{port}")
+            _LOG.info(f"… Connected to Fire TV at {host}:{port}")
             
             device_id = f"firetv_{host.replace('.', '_')}_{port}"
             device_name = f"Fire TV ({host})"
@@ -78,8 +78,8 @@ async def _initialize_entities():
             
             _entities_ready = True
             
-            _LOG.info(f"✅ Fire TV remote entity created: {remote_entity.id}")
-            _LOG.info("✅ Entities ready for subscription")
+            _LOG.info(f"… Fire TV remote entity created: {remote_entity.id}")
+            _LOG.info("… Entities ready for subscription")
             _LOG.info("=" * 60)
             
             await api.set_device_state(DeviceStates.CONNECTED)
@@ -127,7 +127,7 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             
             if not connection_ok:
                 _LOG.error("=" * 60)
-                _LOG.error(f"❌ CANNOT REACH FIRE TV AT {host_input}:{port}")
+                _LOG.error(f"CANNOT REACH FIRE TV AT {host_input}:{port}")
                 _LOG.error("=" * 60)
                 _LOG.error("")
                 _LOG.error("Troubleshooting:")
@@ -140,7 +140,7 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
                 await test_client.close()
                 return SetupError(IntegrationSetupError.CONNECTION_REFUSED)
             
-            _LOG.info("✅ Connection successful to Fire TV")
+            _LOG.info("Connection successful to Fire TV")
             
             _LOG.info("Step 2: Requesting PIN display on Fire TV screen")
             
@@ -149,14 +149,14 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
             
             if not pin_requested:
                 _LOG.error("=" * 60)
-                _LOG.error("❌ FAILED TO REQUEST PIN DISPLAY")
+                _LOG.error(" FAILED TO REQUEST PIN DISPLAY")
                 _LOG.error("=" * 60)
                 return SetupError(IntegrationSetupError.OTHER)
             
             config.set('host', host_input)
             config.set('port', port)
             
-            _LOG.info("✅ PIN display request successful")
+            _LOG.info("… PIN display request successful")
             _LOG.info("Step 3: Showing PIN entry page to user")
             
             return ucapi.RequestUserInput(
@@ -200,20 +200,20 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
         
         if not token:
             _LOG.error("=" * 60)
-            _LOG.error("❌ PIN VERIFICATION FAILED")
+            _LOG.error("PIN VERIFICATION FAILED")
             _LOG.error("=" * 60)
             return SetupError(IntegrationSetupError.AUTHORIZATION_ERROR)
         
         config.set('token', token)
         config.save()
         
-        _LOG.info("✅ PIN verified successfully")
-        _LOG.info("✅ Authentication token obtained and saved")
+        _LOG.info("PIN verified successfully")
+        _LOG.info("Authentication token obtained and saved")
         _LOG.info("Step 5: Setup complete - Initializing entities")
         
         await _initialize_entities()
         
-        _LOG.info("✅ Setup completed successfully!")
+        _LOG.info("… Setup completed successfully!")
         
         return SetupComplete()
         
@@ -230,7 +230,7 @@ async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
 
 
 async def on_connect() -> None:
-    global config, _entities_ready
+    global config, _entities_ready, client
     
     _LOG.info("=" * 60)
     _LOG.info("Remote Two/3 connected")
@@ -251,6 +251,8 @@ async def on_connect() -> None:
             return
     
     if config.is_configured() and _entities_ready:
+        if client and client.session and not client.session.closed:
+            _LOG.info("Fire TV client session active, connection maintained")
         await api.set_device_state(DeviceStates.CONNECTED)
     elif not config.is_configured():
         await api.set_device_state(DeviceStates.DISCONNECTED)
@@ -259,14 +261,28 @@ async def on_connect() -> None:
 
 
 async def on_disconnect() -> None:
-    _LOG.info("Remote Two/3 disconnected")
+    global client, _entities_ready
+    
+    _LOG.warning("=" * 60)
+    _LOG.warning("Remote Two/3 disconnected - cleaning up")
+    _LOG.warning("=" * 60)
+    
+    if client:
+        try:
+            _LOG.info("Closing Fire TV client session...")
+            await client.close()
+            _LOG.info("Fire TV client session closed")
+        except Exception as e:
+            _LOG.error(f"Error closing Fire TV client: {e}")
+    
+    _LOG.info("Disconnect cleanup complete - ready for reconnect")
 
 
 async def on_subscribe_entities(entity_ids: List[str]):
     global remote_entity, _entities_ready
     
     _LOG.info("=" * 60)
-    _LOG.info(f"✅ SUBSCRIPTION EVENT - Entities subscribed: {entity_ids}")
+    _LOG.info(f"… SUBSCRIPTION EVENT - Entities subscribed: {entity_ids}")
     _LOG.info("=" * 60)
     
     if not _entities_ready:
@@ -279,9 +295,9 @@ async def on_subscribe_entities(entity_ids: List[str]):
     
     for entity_id in entity_ids:
         if remote_entity and entity_id == remote_entity.id:
-            _LOG.info(f"📡 Pushing initial state for remote entity: {entity_id}")
+            _LOG.info(f"Pushing initial state for remote entity: {entity_id}")
             await remote_entity.push_initial_state()
-            _LOG.info("✅ Remote entity initial state pushed")
+            _LOG.info("… Remote entity initial state pushed")
 
 
 async def on_unsubscribe_entities(entity_ids: List[str]):
@@ -292,7 +308,7 @@ async def main():
     global api, config
     
     _LOG.info("=" * 60)
-    _LOG.info("🔥 FIRE TV INTEGRATION DRIVER STARTING")
+    _LOG.info("FIRE TV INTEGRATION DRIVER STARTING")
     _LOG.info("=" * 60)
     
     try:
@@ -338,6 +354,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, asyncio.CancelledError):
-        _LOG.info("🔥 Fire TV driver stopped by user")
+        _LOG.info("Fire TV driver stopped by user")
     except Exception as e:
-        _LOG.error(f"🔥 Fire TV driver crashed: {e}", exc_info=True)
+        _LOG.error(f"Fire TV driver crashed: {e}", exc_info=True)
