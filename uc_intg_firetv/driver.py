@@ -295,7 +295,7 @@ async def on_subscribe_entities(entity_ids: List[str]):
     
     for entity_id in entity_ids:
         if remote_entity and entity_id == remote_entity.id:
-            _LOG.info(f"ðŸ"¡ Pushing initial state for remote entity: {entity_id}")
+            _LOG.info(f"Pushing initial state for remote entity: {entity_id}")
             await remote_entity.push_initial_state()
             _LOG.info("… Remote entity initial state pushed")
 
@@ -308,7 +308,7 @@ async def main():
     global api, config
     
     _LOG.info("=" * 60)
-    _LOG.info("ðŸ"¥ FIRE TV INTEGRATION DRIVER STARTING")
+    _LOG.info("FIRE TV INTEGRATION DRIVER STARTING")
     _LOG.info("=" * 60)
     
     try:
@@ -354,6 +354,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, asyncio.CancelledError):
-        _LOG.info("ðŸ"¥ Fire TV driver stopped by user")
+        _LOG.info("Fire TV driver stopped by user")
     except Exception as e:
-        _LOG.error(f"ðŸ"¥ Fire TV driver crashed: {e}", exc_info=True)
+        _LOG.error(f"Fire TV driver crashed: {e}", exc_info=True)
