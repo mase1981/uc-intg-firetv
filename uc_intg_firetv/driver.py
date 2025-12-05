@@ -241,22 +241,22 @@ async def on_connect() -> None:
     
     config.reload_from_disk()
     
-    if client and client.session and not client.session.closed:
-        _LOG.info("Closing existing Fire TV client session before reconnect...")
-        await client.close()
-        await client._ensure_session()
-        _LOG.info("✅ Fire TV client session recreated")
-    
     if config.is_configured() and not _entities_ready:
         _LOG.info("Configuration found but entities missing, reinitializing...")
         try:
             await _initialize_entities()
         except Exception as e:
-            _LOG.error(f"Failed to reinitialize entities: %s", e)
+            _LOG.error(f"Failed to reinitialize entities: {e}")
             await api.set_device_state(DeviceStates.ERROR)
             return
     
     if config.is_configured() and _entities_ready:
+        if client and client.session:
+            try:
+                if not client.session.closed:
+                    _LOG.info("Fire TV client session active, connection maintained")
+            except Exception:
+                pass
         await api.set_device_state(DeviceStates.CONNECTED)
     elif not config.is_configured():
         await api.set_device_state(DeviceStates.DISCONNECTED)
