@@ -21,7 +21,6 @@ ERROR_OS_WAIT = 0.5
 
 
 class TokenInvalidError(Exception):
-    """Raised when the authentication token is invalid or expired."""
     pass
 
 
@@ -130,11 +129,30 @@ class FireTVClient:
                 timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
                 if response.status in [200, 201, 204]:
-                    _LOG.info(f"âœ… Wake-up successful: {response.status}")
+                    _LOG.info(f"✅ Wake-up successful: {response.status}")
                     return True
                 else:
                     _LOG.debug(f"Wake-up returned status: {response.status} (device may already be awake)")
                     return True
+                    
+        except ClientOSError as ex:
+            _LOG.warning("[%s] OS error during wake-up (WiFi not ready), waiting %ss", self._device_address, ERROR_OS_WAIT)
+            try:
+                await asyncio.sleep(ERROR_OS_WAIT)
+                _LOG.info("[%s] Retrying wake-up after WiFi stabilization", self._device_address)
+                async with self.session.post(
+                    self._wake_url,
+                    headers={
+                        "User-Agent": "okhttp/4.10.0",
+                        "Content-Type": "text/plain; charset=utf-8",
+                        "Content-Length": "0"
+                    },
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as response:
+                    return response.status in [200, 201, 204]
+            except Exception as retry_ex:
+                _LOG.debug(f"Wake-up retry failed (device may already be awake): {retry_ex}")
+                return True
                     
         except asyncio.TimeoutError:
             _LOG.debug("Wake-up timeout (device may already be awake)")
@@ -161,19 +179,19 @@ class FireTVClient:
                 timeout=aiohttp.ClientTimeout(total=15)
             ) as response:
                 if response.status == 200:
-                    _LOG.info("âœ… PIN display request successful")
+                    _LOG.info("✅ PIN display request successful")
                     _LOG.info("PIN should now be visible on Fire TV screen")
                     return True
                 else:
-                    _LOG.error(f"âŒ PIN display request failed with status: {response.status}")
+                    _LOG.error(f"❌ PIN display request failed with status: {response.status}")
                     return False
                     
         except asyncio.TimeoutError:
-            _LOG.error("â±ï¸ PIN display request timeout")
+            _LOG.error("⏱️ PIN display request timeout")
             return False
             
         except Exception as e:
-            _LOG.error(f"âŒï¸ Error requesting PIN display: {str(e)}")
+            _LOG.error(f"❌️ Error requesting PIN display: {str(e)}")
             return False
 
     async def verify_pin(self, pin: str) -> Optional[str]:
@@ -195,7 +213,7 @@ class FireTVClient:
                     data = await response.json()
                     token = data.get('description')
                     self.token = token
-                    _LOG.info(f"âœ… PIN verified - Token obtained: {token}")
+                    _LOG.info(f"✅ PIN verified - Token obtained: {token}")
                     return token
                 else:
                     _LOG.error(f"PIN verification failed with status: {response.status}")
@@ -219,25 +237,25 @@ class FireTVClient:
                 ) as response:
                     reachable = response.status in [200, 400, 401, 403, 404, 405]
                     if reachable:
-                        _LOG.info(f"âœ… Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
+                        _LOG.info(f"✅ Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
                         return True
                     else:
-                        _LOG.warning(f"âŒï¸ Unexpected response status: {response.status} (attempt {attempt})")
+                        _LOG.warning(f"❌️ Unexpected response status: {response.status} (attempt {attempt})")
                         
             except asyncio.TimeoutError:
-                _LOG.warning(f"â±ï¸ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
+                _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
                 
             except aiohttp.ClientConnectorError as e:
-                _LOG.warning(f"âŒï¸ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
+                _LOG.warning(f"❌️ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
                 
             except Exception as e:
-                _LOG.warning(f"âŒï¸ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
+                _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
             
             if attempt < max_retries:
-                _LOG.info(f"â³ Waiting {retry_delay} seconds before retry...")
+                _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
         
-        _LOG.error(f"âŒ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
+        _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
         return False
 
     async def _send_command_with_retry(self, command_func, command_name: str, max_retries: int = 2):
@@ -276,10 +294,10 @@ class FireTVClient:
                 
             except aiohttp.ClientResponseError as e:
                 if e.status in [401, 403]:
-                    _LOG.error(f"âŒ AUTHENTICATION FAILED: Token is invalid or expired")
-                    _LOG.error(f"âŒ Status {e.status}: {e.message}")
-                    _LOG.error(f"âŒ SOLUTION: Re-run setup to obtain new authentication token")
-                    _LOG.error(f"âŒ This typically happens if pairing was removed from Fire TV settings")
+                    _LOG.error(f"❌ AUTHENTICATION FAILED: Token is invalid or expired")
+                    _LOG.error(f"❌ Status {e.status}: {e.message}")
+                    _LOG.error(f"❌ SOLUTION: Re-run setup to obtain new authentication token")
+                    _LOG.error(f"❌ This typically happens if pairing was removed from Fire TV settings")
                     raise TokenInvalidError(
                         f"Authentication token invalid (HTTP {e.status}). "
                         "Please re-run setup to re-authenticate."
@@ -297,7 +315,7 @@ class FireTVClient:
                     await asyncio.sleep(2)
                     await self._recreate_session()
                 else:
-                    _LOG.error(f"âŒ {command_name} failed after {max_retries} attempts")
+                    _LOG.error(f"❌ {command_name} failed after {max_retries} attempts")
                     raise
                     
             except (ServerTimeoutError, ClientConnectionError) as ex:
@@ -324,9 +342,9 @@ class FireTVClient:
                 
                 success = response.status == 200
                 if success:
-                    _LOG.debug(f"âœ… Navigation command successful: {action}")
+                    _LOG.debug(f"✅ Navigation command successful: {action}")
                 else:
-                    _LOG.warning(f"âŒ Navigation command failed: {action} (status: {response.status})")
+                    _LOG.warning(f"❌ Navigation command failed: {action} (status: {response.status})")
                 return success
         
         try:
@@ -366,9 +384,9 @@ class FireTVClient:
                 
                 success = response.status == 200
                 if success:
-                    _LOG.debug(f"âœ… Media command successful: {action}")
+                    _LOG.debug(f"✅ Media command successful: {action}")
                 else:
-                    _LOG.warning(f"âŒ Media command failed: {action} (status: {response.status})")
+                    _LOG.warning(f"❌ Media command failed: {action} (status: {response.status})")
                 return success
         
         try:
@@ -395,9 +413,9 @@ class FireTVClient:
                 
                 success = response.status == 200
                 if success:
-                    _LOG.info(f"âœ… App launch successful: {package_name}")
+                    _LOG.info(f"✅ App launch successful: {package_name}")
                 else:
-                    _LOG.warning(f"âŒ App launch failed: {package_name} (status: {response.status})")
+                    _LOG.warning(f"❌ App launch failed: {package_name} (status: {response.status})")
                 return success
         
         try:
