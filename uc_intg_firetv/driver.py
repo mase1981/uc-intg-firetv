@@ -29,66 +29,152 @@ client: Optional[FireTVClient] = None
 remote_entity: Optional[FireTVRemote] = None
 _entities_ready: bool = False
 _initialization_lock: asyncio.Lock = asyncio.Lock()
+reconnect_task: Optional[asyncio.Task] = None
+
+MAX_STARTUP_RETRIES = 15
+STARTUP_RETRY_DELAY = 4
+RECONNECT_CHECK_INTERVAL = 30
+RECONNECT_RETRY_DELAY = 10
 
 
-async def _initialize_entities():
+async def _initialize_entities(is_reconnection: bool = False):
     global config, client, remote_entity, api, _entities_ready
-    
+
     async with _initialization_lock:
-        if _entities_ready:
+        if _entities_ready and not is_reconnection:
             _LOG.debug("Entities already initialized, skipping")
-            return
-        
+            return True
+
         if not config or not config.is_configured():
             _LOG.info("Integration not configured, skipping entity initialization")
-            return
-        
+            return False
+
         _LOG.info("=" * 60)
-        _LOG.info("Initializing Fire TV entities...")
+        _LOG.info("Reconnecting to Fire TV..." if is_reconnection else "Initializing Fire TV entities...")
         _LOG.info("=" * 60)
-        
-        try:
-            host = config.get_host()
-            port = config.get('port', 8080)
-            token = config.get_token()
-            
-            _LOG.info(f"Host: {host}")
-            _LOG.info(f"Port: {port}")
-            _LOG.info(f"Token: {token[:10]}..." if token else "None")
-            
-            client = FireTVClient(host, port, token)
-            
-            if not await client.test_connection():
-                _LOG.error(f"Failed to connect to Fire TV at {host}:{port}")
-                await api.set_device_state(DeviceStates.ERROR)
+
+        await api.set_device_state(DeviceStates.CONNECTING)
+
+        retry_count = 0
+        retry_delay = STARTUP_RETRY_DELAY
+        max_retries = MAX_STARTUP_RETRIES if not is_reconnection else 3
+
+        while retry_count < max_retries:
+            try:
+                if is_reconnection and client:
+                    try:
+                        await client.close()
+                    except:
+                        pass
+                    client = None
+
+                host = config.get_host()
+                port = config.get('port', 8080)
+                token = config.get_token()
+
+                _LOG.info(f"Host: {host}")
+                _LOG.info(f"Port: {port}")
+                _LOG.info(f"Token: {token[:10]}..." if token else "None")
+
+                client = FireTVClient(host, port, token)
+
+                if not await client.test_connection():
+                    raise ConnectionError(f"Failed to connect to Fire TV at {host}:{port}")
+
+                _LOG.info(f"✅ Connected to Fire TV at {host}:{port}")
+
+                if not is_reconnection:
+                    device_id = f"firetv_{host.replace('.', '_')}_{port}"
+                    device_name = f"Fire TV ({host})"
+
+                    remote_entity = FireTVRemote(device_id, device_name)
+                    remote_entity.set_client(client)
+                    remote_entity.set_api(api)
+
+                    api.available_entities.clear()
+                    api.available_entities.add(remote_entity)
+
+                    _LOG.info(f"✅ Fire TV remote entity created: {remote_entity.id}")
+                    _LOG.info("✅ Entities ready for subscription")
+                else:
+                    _LOG.info("Reconnection: updating client reference for existing entity")
+                    if remote_entity:
+                        remote_entity.set_client(client)
+                        await remote_entity.push_initial_state()
+
+                _entities_ready = True
+                _LOG.info("=" * 60)
+                await api.set_device_state(DeviceStates.CONNECTED)
+                _LOG.info(f"Integration {'reconnected' if is_reconnection else 'initialized'} successfully")
+                return True
+
+            except (ConnectionError, asyncio.TimeoutError, OSError) as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    _LOG.error(f"Connection failed after {retry_count} attempts: {e}")
+                    _entities_ready = False
+                    await api.set_device_state(DeviceStates.ERROR)
+                    if client:
+                        try:
+                            await client.close()
+                        except:
+                            pass
+                        client = None
+                    return False
+
+                _LOG.warning(f"Connection attempt {retry_count}/{max_retries} failed: {e}. Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 1.5, 30)
+
+            except Exception as e:
+                _LOG.error(f"Unexpected error during {'reconnection' if is_reconnection else 'initialization'}: {e}", exc_info=True)
                 _entities_ready = False
-                return
-            
-            _LOG.info(f"✅ Connected to Fire TV at {host}:{port}")
-            
-            device_id = f"firetv_{host.replace('.', '_')}_{port}"
-            device_name = f"Fire TV ({host})"
-            
-            remote_entity = FireTVRemote(device_id, device_name)
-            remote_entity.set_client(client)
-            remote_entity.set_api(api)
-            
-            api.available_entities.clear()
-            api.available_entities.add(remote_entity)
-            
-            _entities_ready = True
-            
-            _LOG.info(f"✅ Fire TV remote entity created: {remote_entity.id}")
-            _LOG.info("✅ Entities ready for subscription")
-            _LOG.info("=" * 60)
-            
-            await api.set_device_state(DeviceStates.CONNECTED)
-            
+                await api.set_device_state(DeviceStates.ERROR)
+                if client:
+                    try:
+                        await client.close()
+                    except:
+                        pass
+                    client = None
+                return False
+
+        return False
+
+
+async def connection_monitor():
+    global client, api
+
+    _LOG.info("Connection monitor started")
+
+    while True:
+        try:
+            await asyncio.sleep(RECONNECT_CHECK_INTERVAL)
+
+            if api.device_state == DeviceStates.ERROR or not client:
+                _LOG.warning("Connection lost. Attempting reconnection...")
+                success = await _initialize_entities(is_reconnection=True)
+
+                if not success:
+                    _LOG.error(f"Reconnection failed. Will retry in {RECONNECT_RETRY_DELAY} seconds")
+                    await asyncio.sleep(RECONNECT_RETRY_DELAY)
+                else:
+                    _LOG.info("Reconnection successful!")
+
+            elif api.device_state == DeviceStates.CONNECTED and client:
+                try:
+                    if not await client.test_connection(max_retries=1):
+                        _LOG.warning("Connection test failed. Marking as disconnected.")
+                        await api.set_device_state(DeviceStates.ERROR)
+                except Exception as e:
+                    _LOG.warning(f"Connection test failed: {e}. Marking as disconnected.")
+                    await api.set_device_state(DeviceStates.ERROR)
+
+        except asyncio.CancelledError:
+            _LOG.info("Connection monitor task cancelled")
+            break
         except Exception as e:
-            _LOG.error(f"Failed to initialize entities: {e}", exc_info=True)
-            _entities_ready = False
-            await api.set_device_state(DeviceStates.ERROR)
-            raise
+            _LOG.error(f"Error in connection monitor: {e}", exc_info=True)
+            await asyncio.sleep(RECONNECT_RETRY_DELAY)
 
 
 async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:
@@ -309,49 +395,53 @@ async def on_unsubscribe_entities(entity_ids: List[str]):
 
 
 async def main():
-    global api, config
-    
+    global api, config, reconnect_task
+
     _LOG.info("=" * 60)
     _LOG.info("FIRE TV INTEGRATION DRIVER STARTING")
     _LOG.info("=" * 60)
-    
+
     try:
         loop = asyncio.get_running_loop()
-        
+
         config = Config()
         config.load()
-        
+
         driver_path = os.path.join(os.path.dirname(__file__), "..", "driver.json")
         api = ucapi.IntegrationAPI(loop)
-        
-        if config.is_configured():
-            _LOG.info("Found existing configuration, pre-initializing entities for reboot survival")
-            loop.create_task(_initialize_entities())
-        else:
-            _LOG.info("No configuration found, waiting for setup...")
-        
+
         api.add_listener(Events.CONNECT, on_connect)
         api.add_listener(Events.DISCONNECT, on_disconnect)
         api.add_listener(Events.SUBSCRIBE_ENTITIES, on_subscribe_entities)
         api.add_listener(Events.UNSUBSCRIBE_ENTITIES, on_unsubscribe_entities)
-        
+
         await api.init(os.path.abspath(driver_path), setup_handler)
-        
+
+        reconnect_task = asyncio.create_task(connection_monitor())
+
         if config.is_configured():
-            await api.set_device_state(DeviceStates.CONNECTING)
+            _LOG.info("Found existing configuration, pre-initializing entities with retry logic")
+            asyncio.create_task(_initialize_entities(is_reconnection=False))
         else:
+            _LOG.info("No configuration found, waiting for setup...")
             await api.set_device_state(DeviceStates.DISCONNECTED)
-        
+
         _LOG.info("Fire TV driver initialized successfully")
         _LOG.info("=" * 60)
-        
+
         await asyncio.Future()
-        
+
     except asyncio.CancelledError:
         _LOG.info("Driver task cancelled")
     except Exception as e:
         _LOG.error(f"Fatal error in main: {e}", exc_info=True)
-        raise
+    finally:
+        if reconnect_task and not reconnect_task.done():
+            reconnect_task.cancel()
+            try:
+                await reconnect_task
+            except asyncio.CancelledError:
+                pass
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 {
   "driver_id": "firetv",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "min_core_api": "0.3.0",
   "name": {
     "en": "Fire TV"
@@ -16,7 +16,7 @@
   },
   "home_page": "https://github.com/mase1981/uc-intg-firetv",
   "documentation": "https://github.com/mase1981/uc-intg-firetv/blob/main/README.md",
-  "release_date": "2025-01-01",
+  "release_date": "2026-01-15",
   "setup_data_schema": {
     "title": {
       "en": "Fire TV Configuration"
