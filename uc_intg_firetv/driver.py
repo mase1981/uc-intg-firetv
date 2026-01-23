@@ -34,7 +34,9 @@ reconnect_task: Optional[asyncio.Task] = None
 MAX_STARTUP_RETRIES = 15
 STARTUP_RETRY_DELAY = 4
 RECONNECT_CHECK_INTERVAL = 30
-RECONNECT_RETRY_DELAY = 10
+RECONNECT_RETRY_DELAY_BASE = 10
+RECONNECT_RETRY_DELAY_MAX = 60
+RECONNECT_MAX_RETRIES = 5
 
 
 async def _initialize_entities(is_reconnection: bool = False):
@@ -57,16 +59,22 @@ async def _initialize_entities(is_reconnection: bool = False):
 
         retry_count = 0
         retry_delay = STARTUP_RETRY_DELAY
-        max_retries = MAX_STARTUP_RETRIES if not is_reconnection else 3
+        max_retries = MAX_STARTUP_RETRIES if not is_reconnection else RECONNECT_MAX_RETRIES
 
         while retry_count < max_retries:
             try:
-                if is_reconnection and client:
+                # Always close and recreate client to ensure fresh session
+                if client:
                     try:
+                        _LOG.debug("Closing existing client session...")
                         await client.close()
-                    except:
-                        pass
+                    except Exception as close_err:
+                        _LOG.debug(f"Error closing client: {close_err}")
                     client = None
+
+                # Small delay after closing to ensure cleanup
+                if is_reconnection:
+                    await asyncio.sleep(1)
 
                 host = config.get_host()
                 port = config.get('port', 8080)
@@ -145,36 +153,65 @@ async def connection_monitor():
     global client, api
 
     _LOG.info("Connection monitor started")
+    reconnect_delay = RECONNECT_RETRY_DELAY_BASE
+    consecutive_failures = 0
+    max_consecutive_failures = 3
 
     while True:
         try:
             await asyncio.sleep(RECONNECT_CHECK_INTERVAL)
 
+            # If in ERROR state or no client, attempt reconnection
             if api.device_state == DeviceStates.ERROR or not client:
-                _LOG.warning("Connection lost. Attempting reconnection...")
+                _LOG.warning(f"Connection lost (consecutive failures: {consecutive_failures}). Attempting reconnection...")
                 success = await _initialize_entities(is_reconnection=True)
 
                 if not success:
-                    _LOG.error(f"Reconnection failed. Will retry in {RECONNECT_RETRY_DELAY} seconds")
-                    await asyncio.sleep(RECONNECT_RETRY_DELAY)
+                    consecutive_failures += 1
+                    # Exponential backoff: 10s -> 20s -> 40s -> 60s (max)
+                    reconnect_delay = min(reconnect_delay * 2, RECONNECT_RETRY_DELAY_MAX)
+                    _LOG.error(f"Reconnection failed ({consecutive_failures} consecutive failures). Will retry in {reconnect_delay} seconds")
+                    await asyncio.sleep(reconnect_delay)
                 else:
-                    _LOG.info("Reconnection successful!")
+                    _LOG.info("Reconnection successful! Resetting failure counter.")
+                    consecutive_failures = 0
+                    reconnect_delay = RECONNECT_RETRY_DELAY_BASE
 
+            # If connected, verify connection health
             elif api.device_state == DeviceStates.CONNECTED and client:
                 try:
-                    if not await client.test_connection(max_retries=1):
-                        _LOG.warning("Connection test failed. Marking as disconnected.")
-                        await api.set_device_state(DeviceStates.ERROR)
+                    # Light connection test - just verify session is alive
+                    if client.session and not client.session.closed:
+                        # Session looks good, reset failure counter
+                        if consecutive_failures > 0:
+                            _LOG.debug("Connection healthy, resetting failure counter")
+                            consecutive_failures = 0
+                            reconnect_delay = RECONNECT_RETRY_DELAY_BASE
+                    else:
+                        # Session is closed, mark as error
+                        _LOG.warning("Client session is closed. Marking as disconnected.")
+                        consecutive_failures += 1
+                        # Only set ERROR state after multiple consecutive failures
+                        if consecutive_failures >= max_consecutive_failures:
+                            await api.set_device_state(DeviceStates.ERROR)
+                            _LOG.error(f"Connection unhealthy for {consecutive_failures} checks. Setting ERROR state.")
+                        else:
+                            _LOG.warning(f"Connection issue detected ({consecutive_failures}/{max_consecutive_failures}), will retry")
+
                 except Exception as e:
-                    _LOG.warning(f"Connection test failed: {e}. Marking as disconnected.")
-                    await api.set_device_state(DeviceStates.ERROR)
+                    consecutive_failures += 1
+                    _LOG.warning(f"Connection health check failed ({consecutive_failures}/{max_consecutive_failures}): {e}")
+                    # Only set ERROR state after multiple consecutive failures
+                    if consecutive_failures >= max_consecutive_failures:
+                        await api.set_device_state(DeviceStates.ERROR)
+                        _LOG.error("Multiple consecutive health check failures. Setting ERROR state.")
 
         except asyncio.CancelledError:
             _LOG.info("Connection monitor task cancelled")
             break
         except Exception as e:
             _LOG.error(f"Error in connection monitor: {e}", exc_info=True)
-            await asyncio.sleep(RECONNECT_RETRY_DELAY)
+            await asyncio.sleep(reconnect_delay)
 
 
 async def setup_handler(msg: ucapi.SetupDriver) -> ucapi.SetupAction:

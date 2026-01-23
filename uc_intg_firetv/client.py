@@ -223,14 +223,15 @@ class FireTVClient:
             return None
 
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
-        await self._ensure_session()
-        
         _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
-        
+
         for attempt in range(1, max_retries + 1):
             try:
+                # Ensure we have a fresh session for each attempt
+                await self._ensure_session()
+
                 _LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
-                
+
                 async with self.session.get(
                     f"{self._base_url}/",
                     timeout=aiohttp.ClientTimeout(total=12)
@@ -241,20 +242,26 @@ class FireTVClient:
                         return True
                     else:
                         _LOG.warning(f"❌️ Unexpected response status: {response.status} (attempt {attempt})")
-                        
+
             except asyncio.TimeoutError:
                 _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
-                
-            except aiohttp.ClientConnectorError as e:
+                # Recreate session on timeout
+                await self._recreate_session()
+
+            except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError) as e:
                 _LOG.warning(f"❌️ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
-                
+                # Recreate session on connection error
+                await self._recreate_session()
+
             except Exception as e:
                 _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
-            
+                # Recreate session on any error
+                await self._recreate_session()
+
             if attempt < max_retries:
                 _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
-        
+
         _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
         return False
 
