@@ -35,11 +35,16 @@ class FireTVClient:
         self._wake_timeout: float = 25 * 60
         self._device_address = f"{host}:{port}"
 
-        if host.lower() in ['localhost', '127.0.0.1', '0.0.0.0']:
+        # Use HTTP for localhost/simulator or if explicitly on port 8080 (simulator default)
+        # Real Fire TV devices typically use other ports (8009, 8443)
+        is_local = host.lower() in ['localhost', '127.0.0.1', '0.0.0.0']
+        is_simulator_port = port == 8080
+
+        if is_local or is_simulator_port:
             self._use_https = False
             self._base_url = f"http://{self.host}:{self.port}"
             self._wake_url = f"http://{self.host}:{self.port}/apps/FireTVRemote"
-            _LOG.info("Using HTTP for simulator/localhost")
+            _LOG.info("Using HTTP (simulator mode)" if is_simulator_port else "Using HTTP for localhost")
         else:
             self._use_https = True
             self._base_url = f"https://{self.host}:{self.port}"
