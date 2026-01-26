@@ -3,7 +3,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/mase1981/uc-intg-firetv?style=flat-square)](https://github.com/mase1981/uc-intg-firetv/releases)
 ![License](https://img.shields.io/badge/license-MPL--2.0-blue)
 [![GitHub issues](https://img.shields.io/github/issues/mase1981/uc-intg-firetv?style=flat-square)](https://github.com/mase1981/uc-intg-firetv/issues)
-[![Community Forum](https://img.shields.io/badge/community-forum-blue?style=flat-square)](https://community.unfoldedcircle.com/)
+[![Community Forum](https://img.shields.io/badge/community-forum-blue?style=flat-square)](https://unfolded.community/)
 [![Discord](https://badgen.net/discord/online-members/zGVYf58)](https://discord.gg/zGVYf58)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/mase1981/uc-intg-firetv/total)
 [![Buy Me A Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg)](https://buymeacoffee.com/meirmiyara)
