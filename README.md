@@ -143,7 +143,7 @@ cd uc-intg-firetv
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python -m uc_intg_firetv.driver
+python -m intg_firetv
 ```
 
 ---
@@ -310,7 +310,7 @@ cd tools
 python firetv_simulator.py
 
 # Terminal 2
-python -m uc_intg_firetv.driver
+python -m intg_firetv
 
 # Setup: IP: 127.0.0.1, PIN: 1234
 ```
@@ -340,7 +340,7 @@ python -m uc_intg_firetv.driver
 
 ### Add Pre-configured Apps
 
-To add more apps to the top 5 quick launch list, edit `uc_intg_firetv/apps.py`:
+To add more apps to the top 5 quick launch list, edit `intg_firetv/apps.py`:
 
 ```python
 FIRE_TV_TOP_APPS = {

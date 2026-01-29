@@ -41,10 +41,8 @@ async def main():
     _LOG.info("Starting Fire TV Integration v%s", __version__)
 
     try:
-        # Create driver
         driver = FireTVDriver()
 
-        # Setup configuration
         config_path = get_config_path(driver.api.config_dir_path or "")
         _LOG.info("Using configuration path: %s", config_path)
 
@@ -56,17 +54,13 @@ async def main():
         )
         driver.config_manager = config_manager
 
-        # Create setup handler
         setup_handler = FireTVSetupFlow.create_handler(driver)
 
-        # Initialize API (requires driver.json at project root!)
         driver_path = os.path.join(os.path.dirname(__file__), "..", "driver.json")
         await driver.api.init(os.path.abspath(driver_path), setup_handler)
 
-        # Register configured devices
         await driver.register_all_configured_devices(connect=False)
 
-        # Set initial state
         device_count = len(list(config_manager.all()))
         if device_count > 0:
             await driver.api.set_device_state(DeviceStates.CONNECTED)
@@ -75,7 +69,6 @@ async def main():
 
         _LOG.info("Fire TV integration started")
 
-        # Keep running
         await asyncio.Future()
 
     except KeyboardInterrupt:

@@ -57,7 +57,6 @@ class FireTVDevice(ExternalClientDevice):
             token=self._device_config.token
         )
 
-        # Test connection
         _LOG.info("[%s] Testing connection to Fire TV", self.log_id)
         connected = await self._client.test_connection(max_retries=3, retry_delay=2.0)
 
@@ -68,9 +67,6 @@ class FireTVDevice(ExternalClientDevice):
             raise ConnectionError(f"Failed to connect to Fire TV at {self.address}")
 
         _LOG.info("[%s] Successfully connected to Fire TV", self.log_id)
-
-        # Fire TV is stateless REST API - no state updates to emit
-        # Remote entity will remain in ON state when device is available
         self.events.emit(DeviceEvents.CONNECTED, self.identifier)
 
         return self._client
@@ -91,6 +87,28 @@ class FireTVDevice(ExternalClientDevice):
 
         self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
 
+    def check_client_connected(self) -> bool:
+        """
+        Check if Fire TV client is connected and responsive.
+
+        Called by ExternalClientDevice watchdog to monitor connection health.
+        This enables automatic reconnection if the Fire TV device reboots or
+        becomes unreachable.
+
+        Returns:
+            True if client exists and session is open, False otherwise
+        """
+        if not self._client:
+            _LOG.debug("[%s] Client is None", self.log_id)
+            return False
+
+        if not self._client.session or self._client.session.closed:
+            _LOG.debug("[%s] Client session is closed or None", self.log_id)
+            return False
+
+        _LOG.debug("[%s] Client is connected", self.log_id)
+        return True
+
     async def send_command(self, command: str) -> bool:
         """
         Send a command to Fire TV remote.
@@ -110,7 +128,6 @@ class FireTVDevice(ExternalClientDevice):
 
             command_lower = command.lower()
 
-            # Navigation commands
             nav_commands = {
                 'dpad_up': self._client.dpad_up,
                 'dpad_down': self._client.dpad_down,
@@ -131,7 +148,6 @@ class FireTVDevice(ExternalClientDevice):
             if command_lower in nav_commands:
                 return await nav_commands[command_lower]()
 
-            # Media commands
             media_commands = {
                 'play_pause': self._client.play_pause,
                 'pause': self._client.pause,
@@ -142,13 +158,11 @@ class FireTVDevice(ExternalClientDevice):
             if command_lower in media_commands:
                 return await media_commands[command_lower]()
 
-            # App launch commands
             if command.startswith('LAUNCH_'):
                 from intg_firetv.apps import FIRE_TV_TOP_APPS
 
                 app_name = command.replace('LAUNCH_', '').lower()
 
-                # Find package name from top apps
                 for app_id, app_data in FIRE_TV_TOP_APPS.items():
                     normalized_name = app_data['name'].upper().replace(' ', '_').replace('+', 'PLUS')
                     if normalized_name == command.replace('LAUNCH_', ''):
@@ -159,7 +173,6 @@ class FireTVDevice(ExternalClientDevice):
                 _LOG.warning("[%s] Unknown app launch command: %s", self.log_id, command)
                 return False
 
-            # Custom app launch
             if command.startswith('custom_app:'):
                 from intg_firetv.apps import validate_package_name
 

@@ -5,7 +5,7 @@
             "name": "Python: firetv Integration",
             "type": "debugpy",
             "request": "launch",
-            "module": "uc_intg_firetv.driver",
+            "module": "intg_firetv",
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
             "justMyCode": false,

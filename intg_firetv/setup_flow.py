@@ -54,11 +54,9 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
         Step 1: Validate connection and request PIN from Fire TV.
         Step 2: Verify PIN and create config.
         """
-        # Check if this is the PIN verification step
         if "pin" in input_values and self._temp_host:
             return await self._verify_pin_step(input_values)
 
-        # This is the initial connection step
         return await self._initial_connection_step(input_values)
 
     async def _initial_connection_step(
@@ -76,22 +74,18 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
         except ValueError:
             raise ValueError("Port must be a number") from None
 
-        # Store temporarily for next step
         self._temp_host = host
         self._temp_port = port
 
         _LOG.info("Step 1: Testing connection to Fire TV at %s:%d", host, port)
 
-        # Create temporary client for setup
         client = FireTVClient(host, port)
 
         try:
-            # Wake up device first
             _LOG.info("Sending wake-up command to Fire TV")
             await client.wake_up()
             await asyncio.sleep(3)
 
-            # Test connection
             _LOG.info("Testing connection to Fire TV")
             connected = await client.test_connection(max_retries=3, retry_delay=3.0)
 
@@ -108,7 +102,6 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
 
             _LOG.info("Connection successful to Fire TV")
 
-            # Request PIN display on TV screen
             _LOG.info("Step 2: Requesting PIN display on Fire TV screen")
             pin_requested = await client.request_pin("UC Remote")
 
@@ -122,7 +115,6 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
 
             _LOG.info("PIN display request successful")
 
-            # Return PIN entry form
             return RequestUserInput(
                 {"en": "Enter PIN from Fire TV"},
                 [
@@ -181,11 +173,9 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
 
             _LOG.info("PIN verified successfully, token obtained")
 
-            # Clear temporary data
             self._temp_host = None
             self._temp_port = 8080
 
-            # Create configuration
             config = FireTVConfig(
                 identifier=f"firetv_{host.replace('.', '_')}_{port}",
                 name=name,
