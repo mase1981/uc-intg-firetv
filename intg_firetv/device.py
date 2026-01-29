@@ -42,9 +42,9 @@ class FireTVDevice(ExternalClientDevice):
         """Get the Fire TV client."""
         return self._client
 
-    async def connect_client(self) -> FireTVClient:
+    async def create_client(self) -> FireTVClient:
         """
-        Connect to Fire TV device - called by framework.
+        Create Fire TV client instance - called by framework.
 
         Returns:
             FireTVClient instance
@@ -57,19 +57,24 @@ class FireTVDevice(ExternalClientDevice):
             token=self._device_config.token
         )
 
+        return self._client
+
+    async def connect_client(self) -> None:
+        """
+        Connect to Fire TV device - called by framework after create_client.
+        """
+        if not self._client:
+            raise RuntimeError("Client not created. Call create_client() first.")
+
         _LOG.info("[%s] Testing connection to Fire TV", self.log_id)
         connected = await self._client.test_connection(max_retries=3, retry_delay=2.0)
 
         if not connected:
             _LOG.error("[%s] Failed to connect to Fire TV", self.log_id)
-            await self._client.close()
-            self._client = None
             raise ConnectionError(f"Failed to connect to Fire TV at {self.address}")
 
         _LOG.info("[%s] Successfully connected to Fire TV", self.log_id)
         self.events.emit(DeviceEvents.CONNECTED, self.identifier)
-
-        return self._client
 
     async def disconnect_client(self) -> None:
         """
