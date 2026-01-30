@@ -6,20 +6,21 @@ Fire TV device implementation for Unfolded Circle integration.
 """
 
 import logging
-from ucapi_framework import ExternalClientDevice, DeviceEvents
+from ucapi_framework import PollingDevice, DeviceEvents
 from intg_firetv.config import FireTVConfig
 from intg_firetv.client import FireTVClient
 
 _LOG = logging.getLogger(__name__)
 
 
-class FireTVDevice(ExternalClientDevice):
-    """Fire TV implementation using ExternalClientDevice."""
+class FireTVDevice(PollingDevice):
+    """Fire TV implementation using PollingDevice for automatic reboot survival."""
 
     def __init__(self, device_config: FireTVConfig, **kwargs):
-        super().__init__(device_config, **kwargs)
+        super().__init__(device_config, poll_interval=30, **kwargs)
         self._device_config = device_config
         self._client: FireTVClient | None = None
+        self._is_connected: bool = False
 
     @property
     def identifier(self) -> str:
@@ -42,14 +43,17 @@ class FireTVDevice(ExternalClientDevice):
         """Get the Fire TV client."""
         return self._client
 
-    async def create_client(self) -> FireTVClient:
+    async def establish_connection(self) -> FireTVClient:
         """
-        Create Fire TV client instance - called by framework.
+        Establish connection to Fire TV device - called by framework on startup.
 
         Returns:
             FireTVClient instance
+
+        Raises:
+            ConnectionError: If connection fails after retries
         """
-        _LOG.info("[%s] Creating Fire TV client", self.log_id)
+        _LOG.info("[%s] Establishing connection to Fire TV", self.log_id)
 
         self._client = FireTVClient(
             host=self._device_config.host,
@@ -57,62 +61,58 @@ class FireTVDevice(ExternalClientDevice):
             token=self._device_config.token
         )
 
-        return self._client
-
-    async def connect_client(self) -> None:
-        """
-        Connect to Fire TV device - called by framework after create_client.
-        """
-        if not self._client:
-            raise RuntimeError("Client not created. Call create_client() first.")
-
-        _LOG.info("[%s] Testing connection to Fire TV", self.log_id)
         connected = await self._client.test_connection(max_retries=3, retry_delay=2.0)
 
         if not connected:
-            _LOG.error("[%s] Failed to connect to Fire TV", self.log_id)
+            _LOG.error("[%s] Failed to establish connection to Fire TV", self.log_id)
+            self._is_connected = False
             raise ConnectionError(f"Failed to connect to Fire TV at {self.address}")
 
         _LOG.info("[%s] Successfully connected to Fire TV", self.log_id)
+        self._is_connected = True
         self.events.emit(DeviceEvents.CONNECTED, self.identifier)
+        return self._client
 
-    async def disconnect_client(self) -> None:
+    async def poll_device(self) -> None:
         """
-        Disconnect from Fire TV - called by framework.
-        """
-        _LOG.info("[%s] Disconnecting Fire TV client", self.log_id)
+        Poll Fire TV device to test connectivity - called every 30 seconds by framework.
 
-        if self._client:
-            try:
-                await self._client.close()
-            except Exception as err:
-                _LOG.warning("[%s] Error closing client: %s", self.log_id, err)
-            finally:
-                self._client = None
-
-        self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
-
-    def check_client_connected(self) -> bool:
-        """
-        Check if Fire TV client is connected and responsive.
-
-        Called by ExternalClientDevice watchdog to monitor connection health.
-        This enables automatic reconnection if the Fire TV device reboots or
-        becomes unreachable.
-
-        Returns:
-            True if client exists and session is open, False otherwise
+        Creates a new test connection to verify device is reachable.
+        If device is offline/rebooted, framework will automatically attempt reconnection.
         """
         if not self._client:
-            _LOG.debug("[%s] Client is None", self.log_id)
-            return False
+            _LOG.debug("[%s] No client, skipping poll", self.log_id)
+            return
 
-        if not self._client.session or self._client.session.closed:
-            _LOG.debug("[%s] Client session is closed or None", self.log_id)
-            return False
+        try:
+            _LOG.debug("[%s] Polling device connectivity", self.log_id)
 
-        _LOG.debug("[%s] Client is connected", self.log_id)
-        return True
+            test_client = FireTVClient(
+                host=self._device_config.host,
+                port=self._device_config.port,
+                token=self._device_config.token
+            )
+
+            connected = await test_client.test_connection(max_retries=1, retry_delay=1.0)
+            await test_client.close()
+
+            if connected:
+                if not self._is_connected:
+                    _LOG.info("[%s] Device is now reachable", self.log_id)
+                    self._is_connected = True
+                    self.events.emit(DeviceEvents.CONNECTED, self.identifier)
+            else:
+                if self._is_connected:
+                    _LOG.warning("[%s] Device is now unreachable", self.log_id)
+                    self._is_connected = False
+                    self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
+
+        except Exception as err:
+            _LOG.debug("[%s] Poll error (device likely offline): %s", self.log_id, err)
+            if self._is_connected:
+                _LOG.warning("[%s] Device is now unreachable", self.log_id)
+                self._is_connected = False
+                self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
 
     async def send_command(self, command: str) -> bool:
         """

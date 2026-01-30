@@ -90,3 +90,7 @@ version_info.txt
 tools/
 test*
 
+# Testing files (keep local only, never push to repository)
+tests/
+simulator/
+
