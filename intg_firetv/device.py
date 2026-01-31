@@ -68,6 +68,7 @@ class FireTVDevice(PollingDevice):
             raise ConnectionError(f"Failed to connect to Fire TV at {self.address}")
 
         _LOG.info("[%s] Successfully connected to Fire TV", self.log_id)
+        self._state = "connected"
         return self._client
 
     async def poll_device(self) -> None:
