@@ -5,6 +5,7 @@ Fire TV device implementation for Unfolded Circle integration.
 :license: MPL-2.0, see LICENSE for more details.
 """
 
+import asyncio
 import logging
 from ucapi_framework import PollingDevice, DeviceEvents
 from intg_firetv.config import FireTVConfig
@@ -77,6 +78,9 @@ class FireTVDevice(PollingDevice):
 
         Creates a new test connection to verify device is reachable.
         If device is offline/rebooted, framework will automatically attempt reconnection.
+
+        After Fire TV reboot, port 8080 service may not be running. We send a wake-up
+        command via DIAL protocol (port 8009) to start the service before giving up.
         """
         if not self._client:
             _LOG.debug("[%s] No client, skipping poll", self.log_id)
@@ -92,6 +96,15 @@ class FireTVDevice(PollingDevice):
             )
 
             connected = await test_client.test_connection(max_retries=1, retry_delay=1.0)
+
+            if not connected and self._last_poll_succeeded:
+                _LOG.info("[%s] Connection failed, attempting wake-up via DIAL (port 8009)", self.log_id)
+                await test_client.wake_up()
+                await asyncio.sleep(3)
+
+                _LOG.info("[%s] Retrying connection after wake-up", self.log_id)
+                connected = await test_client.test_connection(max_retries=1, retry_delay=1.0)
+
             await test_client.close()
 
             if connected:
@@ -101,7 +114,7 @@ class FireTVDevice(PollingDevice):
                     self.events.emit(DeviceEvents.CONNECTED, self.identifier)
             else:
                 if self._last_poll_succeeded:
-                    _LOG.warning("[%s] Device is now unreachable", self.log_id)
+                    _LOG.warning("[%s] Device is now unreachable (even after wake-up attempt)", self.log_id)
                     self._last_poll_succeeded = False
                     self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
 
