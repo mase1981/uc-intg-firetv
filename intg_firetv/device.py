@@ -20,7 +20,7 @@ class FireTVDevice(PollingDevice):
         super().__init__(device_config, poll_interval=30, **kwargs)
         self._device_config = device_config
         self._client: FireTVClient | None = None
-        self._is_connected: bool = False
+        self._last_poll_succeeded: bool = False
 
     @property
     def identifier(self) -> str:
@@ -65,12 +65,9 @@ class FireTVDevice(PollingDevice):
 
         if not connected:
             _LOG.error("[%s] Failed to establish connection to Fire TV", self.log_id)
-            self._is_connected = False
             raise ConnectionError(f"Failed to connect to Fire TV at {self.address}")
 
         _LOG.info("[%s] Successfully connected to Fire TV", self.log_id)
-        self._is_connected = True
-        self.events.emit(DeviceEvents.CONNECTED, self.identifier)
         return self._client
 
     async def poll_device(self) -> None:
@@ -97,21 +94,21 @@ class FireTVDevice(PollingDevice):
             await test_client.close()
 
             if connected:
-                if not self._is_connected:
+                if not self._last_poll_succeeded:
                     _LOG.info("[%s] Device is now reachable", self.log_id)
-                    self._is_connected = True
+                    self._last_poll_succeeded = True
                     self.events.emit(DeviceEvents.CONNECTED, self.identifier)
             else:
-                if self._is_connected:
+                if self._last_poll_succeeded:
                     _LOG.warning("[%s] Device is now unreachable", self.log_id)
-                    self._is_connected = False
+                    self._last_poll_succeeded = False
                     self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
 
         except Exception as err:
             _LOG.debug("[%s] Poll error (device likely offline): %s", self.log_id, err)
-            if self._is_connected:
+            if self._last_poll_succeeded:
                 _LOG.warning("[%s] Device is now unreachable", self.log_id)
-                self._is_connected = False
+                self._last_poll_succeeded = False
                 self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
 
     async def send_command(self, command: str) -> bool:
