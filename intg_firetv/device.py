@@ -201,6 +201,11 @@ class FireTVDevice(PollingDevice):
                 _LOG.info("[%s] Launching custom app: %s", self.log_id, package)
                 return await self._client.launch_app(package)
 
+            if command.startswith('custom_cmd:'):
+                custom_command = command.split(':', 1)[1].strip().lower()
+                _LOG.info("[%s] Launching custom command: %s", self.log_id, custom_command)
+                return await self._client.send_navigation_command(custom_command)
+
             _LOG.warning("[%s] Unknown command: %s", self.log_id, command)
             return False
 
