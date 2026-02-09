@@ -431,6 +431,37 @@ class FireTVClient:
             _LOG.error(f"Error launching app {package_name}: {e}")
             return False
 
+    async def send_text(self, text: int) -> bool:
+        async def _send():
+            await self._ensure_session()
+            url = f"{self._base_url}/v1/FireTV/keyboard"
+
+            json_payload = {'text': text}
+
+            _LOG.info(f"Sending text: {text}, {json_payload}")           
+
+            async with self.session.post(
+                url,
+                headers=self._get_headers(),
+                json=json_payload,
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                response.raise_for_status()
+                success = response.status == 200
+                if success:
+                    _LOG.debug(f"✅ Text sent successful: {text}")
+                else:
+                    _LOG.warning(f"❌ Text failed to send: {text} (status: {response.status})")
+                return success
+
+        try:
+            return await self._send_command_with_retry(_send, f"text:{text}")
+        except TokenInvalidError:
+            raise
+        except Exception as e:
+            _LOG.error(f"Error sending keycode {text}: {e}")
+            return False
+
     async def dpad_up(self) -> bool:
         return await self.send_navigation_command("dpad_up")
 
