@@ -58,6 +58,7 @@ class FireTVRemote(Remote):
             'BACK',
             'MENU',
             'EPG',
+            'SETTINGS',
             'VOLUME_UP',
             'VOLUME_DOWN',
             'MUTE',
@@ -72,6 +73,16 @@ class FireTVRemote(Remote):
             'LAUNCH_DISNEY_PLUS',
             'LAUNCH_PLEX',
             'LAUNCH_KODI',
+            '0',
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6',
+            '7',
+            '8',
+            '9'
         ]
 
         return commands
@@ -86,8 +97,11 @@ class FireTVRemote(Remote):
             (Buttons.DPAD_RIGHT, 'DPAD_RIGHT', None),
             (Buttons.DPAD_MIDDLE, 'SELECT', None),
             (Buttons.BACK, 'BACK', None),
-            (Buttons.HOME, 'HOME', 'MENU'),
+            (Buttons.HOME, 'HOME', None),
+            (Buttons.MENU, 'MENU', None),
             (Buttons.PLAY, 'PLAY_PAUSE', None),
+            (Buttons.PREV, 'REWIND', None),
+            (Buttons.NEXT, 'FAST_FORWARD', None),
             (Buttons.VOLUME_UP, 'VOLUME_UP', None),
             (Buttons.VOLUME_DOWN, 'VOLUME_DOWN', None),
             (Buttons.MUTE, 'MUTE', None),
@@ -102,12 +116,10 @@ class FireTVRemote(Remote):
             mapping_dict = {
                 'button': button.value,
                 'short_press': {
-                    'cmd_id': 'send_cmd',
-                    'params': {'command': short_cmd}
+                    'cmd_id': short_cmd
                 } if short_cmd else None,
                 'long_press': {
-                    'cmd_id': 'send_cmd',
-                    'params': {'command': long_cmd}
+                    'cmd_id': long_cmd
                 } if long_cmd else None,
             }
             mappings.append(mapping_dict)
@@ -118,6 +130,7 @@ class FireTVRemote(Remote):
         return [
             self._create_navigation_page(),
             self._create_top_apps_page(),
+            self._create_number_page(),
             self._create_custom_apps_page(),
         ]
 
@@ -128,39 +141,41 @@ class FireTVRemote(Remote):
             'grid': {'width': 4, 'height': 6},
             'items': [
                 {'type': 'text', 'location': {'x': 1, 'y': 0}, 'text': 'UP',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'DPAD_UP'}}},
+                 'command': {'cmd_id': 'DPAD_UP'}},
                 {'type': 'text', 'location': {'x': 0, 'y': 1}, 'text': 'LEFT',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'DPAD_LEFT'}}},
+                 'command': {'cmd_id': 'DPAD_LEFT'}},
                 {'type': 'text', 'location': {'x': 1, 'y': 1}, 'text': 'OK',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'SELECT'}}},
+                 'command': {'cmd_id': 'SELECT'}},
                 {'type': 'text', 'location': {'x': 2, 'y': 1}, 'text': 'RIGHT',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'DPAD_RIGHT'}}},
+                 'command': {'cmd_id': 'DPAD_RIGHT'}},
                 {'type': 'text', 'location': {'x': 1, 'y': 2}, 'text': 'DOWN',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'DPAD_DOWN'}}},
+                 'command': {'cmd_id': 'DPAD_DOWN'}},
                 {'type': 'text', 'location': {'x': 3, 'y': 0}, 'text': 'HOME',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'HOME'}}},
+                 'command': {'cmd_id': 'HOME'}},
                 {'type': 'text', 'location': {'x': 3, 'y': 1}, 'text': 'BACK',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'BACK'}}},
+                 'command': {'cmd_id': 'BACK'}},
                 {'type': 'text', 'location': {'x': 3, 'y': 2}, 'text': 'MENU',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'MENU'}}},
+                 'command': {'cmd_id': 'MENU'}},
+                {'type': 'text', 'location': {'x': 3, 'y': 3}, 'text': 'SET',
+                 'command': {'cmd_id': 'LAUNCH_SETTINGS'}},
                 {'type': 'text', 'location': {'x': 0, 'y': 3}, 'text': 'VOL-',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'VOLUME_DOWN'}}},
+                 'command': {'cmd_id': 'VOLUME_DOWN'}},
                 {'type': 'text', 'location': {'x': 1, 'y': 3}, 'text': 'MUTE',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'MUTE'}}},
+                 'command': {'cmd_id': 'MUTE'}},
                 {'type': 'text', 'location': {'x': 2, 'y': 3}, 'text': 'VOL+',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'VOLUME_UP'}}},
+                 'command': {'cmd_id': 'VOLUME_UP'}},
                 {'type': 'text', 'location': {'x': 0, 'y': 4}, 'text': 'REW',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'REWIND'}}},
+                 'command': {'cmd_id': 'REWIND'}},
                 {'type': 'text', 'location': {'x': 1, 'y': 4}, 'text': 'PLAY',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'PLAY_PAUSE'}}},
+                 'command': {'cmd_id': 'PLAY_PAUSE'}},
                 {'type': 'text', 'location': {'x': 2, 'y': 4}, 'text': 'FWD',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'FAST_FORWARD'}}},
+                 'command': {'cmd_id': 'FAST_FORWARD'}},
                 {'type': 'text', 'location': {'x': 0, 'y': 5}, 'text': 'POWER',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'POWER'}}},
+                 'command': {'cmd_id': 'POWER'}},
                 {'type': 'text', 'location': {'x': 1, 'y': 5}, 'text': 'SLEEP',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'SLEEP'}}},
+                 'command': {'cmd_id': 'SLEEP'}},
                 {'type': 'text', 'location': {'x': 2, 'y': 5}, 'text': 'EPG',
-                 'command': {'cmd_id': 'send_cmd', 'params': {'command': 'EPG'}}},
+                 'command': {'cmd_id': 'EPG'}},
             ]
         }
 
@@ -183,7 +198,7 @@ class FireTVRemote(Remote):
                     'type': 'text',
                     'location': {'x': col, 'y': row},
                     'text': label,
-                    'command': {'cmd_id': 'send_cmd', 'params': {'command': f'LAUNCH_{cmd_name}'}}
+                    'command': {'cmd_id': f'LAUNCH_{cmd_name}'}
                 })
 
         items.append({
@@ -199,6 +214,27 @@ class FireTVRemote(Remote):
             'name': 'Top Apps',
             'grid': {'width': 4, 'height': 6},
             'items': items
+        }
+
+    def _create_number_page(self) -> Dict[str, Any]:
+        return {
+            'page_id': 'keypad',
+            'name': 'Keypad',
+            'grid': {'width': 3, 'height': 4},
+            'items': [
+                {'type': 'text', 'location': {'x': 0, 'y': 0}, 'text': '1', 'command': {'cmd_id': "1"}},
+                {'type': 'text', 'location': {'x': 1, 'y': 0}, 'text': '2', 'command': {'cmd_id': "2"}},
+                {'type': 'text', 'location': {'x': 2, 'y': 0}, 'text': '3', 'command': {'cmd_id': "3"}},
+                {'type': 'text', 'location': {'x': 0, 'y': 1}, 'text': '4', 'command': {'cmd_id': "4"}},
+                {'type': 'text', 'location': {'x': 1, 'y': 1}, 'text': '5', 'command': {'cmd_id': "5"}},
+                {'type': 'text', 'location': {'x': 2, 'y': 1}, 'text': '6', 'command': {'cmd_id': "6"}},
+                {'type': 'text', 'location': {'x': 0, 'y': 2}, 'text': '7', 'command': {'cmd_id': "7"}},
+                {'type': 'text', 'location': {'x': 1, 'y': 2}, 'text': '8', 'command': {'cmd_id': "8"}},
+                {'type': 'text', 'location': {'x': 2, 'y': 2}, 'text': '9', 'command': {'cmd_id': "9"}},
+                {'type': 'text', 'location': {'x': 0, 'y': 3}, 'text': '<', 'command': {'cmd_id': "REWIND"}},
+                {'type': 'text', 'location': {'x': 1, 'y': 3}, 'text': '0', 'command': {'cmd_id': "0"}},
+                {'type': 'text', 'location': {'x': 2, 'y': 3}, 'text': '>', 'command': {'cmd_id': "FAST_FORWARD"}},
+            ]
         }
 
     def _create_custom_apps_page(self) -> Dict[str, Any]:
@@ -225,7 +261,7 @@ class FireTVRemote(Remote):
                 'location': {'x': col, 'y': row},
                 'size': {'width': 2, 'height': 1},
                 'text': label,
-                'command': {'cmd_id': 'send_cmd', 'params': {'command': cmd}}
+                'command': {'cmd_id': cmd}}
             })
 
         items.append({
