@@ -176,7 +176,7 @@ class FireTVDevice(PollingDevice):
             if command_lower in media_commands:
                 return await media_commands[command_lower]()
 
-            if command.startswith('LAUNCH_'):
+            if command.startswith('LAUNCH_') or command == "SETTINGS":
                 from intg_firetv.apps import FIRE_TV_TOP_APPS
 
                 app_name = command.replace('LAUNCH_', '').lower()
