@@ -143,6 +143,7 @@ class FireTVDevice(PollingDevice):
             _LOG.debug("[%s] Sending command: %s", self.log_id, command)
 
             command_lower = command.lower()
+            command_upper = command.upper()
 
             nav_commands = {
                 'dpad_up': self._client.dpad_up,
@@ -152,6 +153,7 @@ class FireTVDevice(PollingDevice):
                 'select': self._client.select,
                 'home': self._client.home,
                 'back': self._client.back,
+                'backspace': self._client.backspace,
                 'menu': self._client.menu,
                 'epg': self._client.epg,
                 'volume_up': self._client.volume_up,
@@ -183,11 +185,17 @@ class FireTVDevice(PollingDevice):
                     normalized_name = app_data['name'].upper().replace(' ', '_').replace('+', 'PLUS')
                     if normalized_name == command.replace('LAUNCH_', ''):
                         package = app_data['package']
-                        _LOG.info("[%s] Launching app: %s (package: %s)", self.log_id, app_data['name'], package)
+                        package_name = app_data['name']
+                        _LOG.info("[%s] Launching app: %s (package: %s)", self.log_id, package_name, package)
                         return await self._client.launch_app(package)
 
                 _LOG.warning("[%s] Unknown app launch command: %s", self.log_id, command)
                 return False
+
+            if command.startswith('text:'):
+                send_text = command.split(':', 1)[1].strip()
+                _LOG.info("[%s] Sending text: %s", self.log_id, send_text)
+                return await self._client.send_text(send_text)
 
             if command.startswith('custom_app:'):
                 from intg_firetv.apps import validate_package_name
