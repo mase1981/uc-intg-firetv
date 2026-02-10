@@ -194,7 +194,7 @@ class FireTVDevice(PollingDevice):
             if command.startswith('text:'):
                 send_text = command.split(':', 1)[1].strip()
                 _LOG.info("[%s] Sending text: %s", self.log_id, send_text)
-                return await self._client.send_keycode(send_text)
+                return await self._client.send_text(send_text)
 
             if command.startswith('custom_app:'):
                 from intg_firetv.apps import validate_package_name
