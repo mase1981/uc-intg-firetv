@@ -42,12 +42,12 @@ FIRE_TV_TOP_APPS: Dict[str, Dict[str, Any]] = {
         'category': 'utility',
         'icon': 'uc:kodi',
     },
-    'settings': [
+    'settings': {
         'name': 'Settings',
         'package': 'settings',
         'category': 'utility',
         'icon': 'uc.settings',
-    ]
+    }
 }
 
 

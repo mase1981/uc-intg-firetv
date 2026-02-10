@@ -261,7 +261,7 @@ class FireTVRemote(Remote):
                 'location': {'x': col, 'y': row},
                 'size': {'width': 2, 'height': 1},
                 'text': label,
-                'command': {'cmd_id': cmd}}
+                'command': {'cmd_id': cmd}
             })
 
         items.append({
