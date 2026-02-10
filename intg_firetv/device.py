@@ -153,6 +153,7 @@ class FireTVDevice(PollingDevice):
                 'select': self._client.select,
                 'home': self._client.home,
                 'back': self._client.back,
+                'backspace': self._client.backspace,
                 'menu': self._client.menu,
                 'epg': self._client.epg,
                 'volume_up': self._client.volume_up,

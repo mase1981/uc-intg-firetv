@@ -434,7 +434,7 @@ class FireTVClient:
     async def send_text(self, text: int) -> bool:
         async def _send():
             await self._ensure_session()
-            url = f"{self._base_url}/v1/FireTV/keyboard"
+            url = f"{self._base_url}/v1/FireTV/text"
 
             json_payload = {'text': text}
 
@@ -482,6 +482,9 @@ class FireTVClient:
 
     async def back(self) -> bool:
         return await self.send_navigation_command("back")
+
+    async def backspace(self) -> bool:
+        return await self.send_navigation_command("backspace")
 
     async def menu(self) -> bool:
         return await self.send_navigation_command("menu")

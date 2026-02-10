@@ -56,6 +56,7 @@ class FireTVRemote(Remote):
             'SELECT',
             'HOME',
             'BACK',
+            'BACKSPACE',
             'MENU',
             'EPG',
             'SETTINGS',
