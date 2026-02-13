@@ -290,27 +290,26 @@ class FireTVRemote(Remote):
         _LOG.info("[%s] Command: %s %s", self.id, cmd_id, params or "")
 
         try:
-            if cmd_id == "send_cmd" and params and 'command' in params:
-                command = params['command']
-                success = await self._device.send_command(command)
-                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
-
-            elif cmd_id == "on":
+            if cmd_id == "on":
                 self.attributes[Attributes.STATE] = States.ON
                 return StatusCodes.OK
 
-            elif cmd_id == "off":
+            if cmd_id == "off":
                 self.attributes[Attributes.STATE] = States.OFF
                 return StatusCodes.OK
 
-            elif cmd_id == "toggle":
+            if cmd_id == "toggle":
                 new_state = States.OFF if self.attributes[Attributes.STATE] == States.ON else States.ON
                 self.attributes[Attributes.STATE] = new_state
                 return StatusCodes.OK
 
+            if cmd_id == "send_cmd" and params and 'command' in params:
+                command = params['command']
             else:
-                _LOG.warning("[%s] Unhandled command: %s", self.id, cmd_id)
-                return StatusCodes.NOT_IMPLEMENTED
+                command = cmd_id
+
+            success = await self._device.send_command(command)
+            return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
 
         except TokenInvalidError as e:
             _LOG.error("[%s] AUTHENTICATION TOKEN INVALID: %s", self.id, e)
