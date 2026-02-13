@@ -6,10 +6,14 @@ Fire TV setup flow for Unfolded Circle integration.
 """
 
 import asyncio
+import base64
+import json
 import logging
 from typing import Any
-from ucapi import RequestUserInput, IntegrationSetupError
+from ucapi import RequestUserInput, SetupComplete, SetupError, IntegrationSetupError
+from ucapi.api import UserDataResponse
 from ucapi_framework import BaseSetupFlow
+from ucapi_framework.setup import SetupSteps
 from intg_firetv.config import FireTVConfig
 from intg_firetv.client import FireTVClient
 
@@ -193,3 +197,98 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
             self._temp_host = None
             self._temp_port = 8080
             raise ValueError(f"PIN verification failed: {err}") from err
+
+    async def _handle_backup(self) -> RequestUserInput | SetupError:
+        """
+        Handle backup configuration request with base64 encoding.
+
+        The UC Remote API incorrectly parses JSON inside textarea values and treats
+        keys like "host" as undeclared field definitions. Base64 encoding the JSON
+        prevents this parsing issue.
+        """
+        _LOG.info("Backing up configuration (base64 encoded)")
+        self._setup_step = SetupSteps.BACKUP
+
+        try:
+            config_json = self.config.get_backup_json()
+            encoded_data = base64.b64encode(config_json.encode("utf-8")).decode("ascii")
+
+            return RequestUserInput(
+                {"en": "Configuration Backup"},
+                [
+                    {
+                        "id": "info",
+                        "label": {"en": "Configuration Backup"},
+                        "field": {
+                            "label": {
+                                "value": {
+                                    "en": "Copy the encoded configuration data below and save it in a safe place. "
+                                    "You can use this to restore your configuration after an integration update."
+                                }
+                            }
+                        },
+                    },
+                    {
+                        "id": "backup_data",
+                        "label": {"en": "Configuration Data (copy this)"},
+                        "field": {"textarea": {"value": encoded_data}},
+                    },
+                ],
+            )
+        except Exception as err:
+            _LOG.error("Backup error: %s", err)
+            return SetupError(error_type=IntegrationSetupError.OTHER)
+
+    async def _handle_restore_response(
+        self, msg: UserDataResponse
+    ) -> SetupComplete | SetupError | RequestUserInput:
+        """
+        Handle restore configuration form submission with base64 decoding.
+
+        Supports both base64-encoded data (new format) and raw JSON (legacy format).
+        """
+        restore_data = msg.input_values.get("restore_data", "").strip()
+
+        if not restore_data:
+            _LOG.warning("No restore data provided, showing restore screen again")
+            return await self._build_restore_screen_with_error(
+                "Please paste the configuration backup data.", restore_data
+            )
+
+        decoded_data = restore_data
+        try:
+            decoded_bytes = base64.b64decode(restore_data)
+            decoded_data = decoded_bytes.decode("utf-8")
+            _LOG.info("Successfully decoded base64 backup data")
+        except Exception:
+            _LOG.info("Data is not base64 encoded, treating as raw JSON")
+            decoded_data = restore_data
+
+        try:
+            json.loads(decoded_data)
+        except json.JSONDecodeError as err:
+            _LOG.warning("Invalid JSON provided: %s", err)
+            return await self._build_restore_screen_with_error(
+                f"Invalid JSON format: {err.msg} at line {err.lineno}, column {err.colno}",
+                restore_data,
+            )
+
+        try:
+            success = self.config.restore_from_backup_json(decoded_data)
+
+            if not success:
+                _LOG.warning("Failed to restore configuration from backup")
+                return await self._build_restore_screen_with_error(
+                    "Invalid configuration format. Please ensure you're pasting the complete backup data.",
+                    restore_data,
+                )
+
+            await asyncio.sleep(1)
+            _LOG.info("Configuration restored successfully")
+            return SetupComplete()
+
+        except Exception as err:
+            _LOG.error("Restore error: %s", err)
+            return await self._build_restore_screen_with_error(
+                f"Failed to restore configuration: {str(err)}", restore_data
+            )
