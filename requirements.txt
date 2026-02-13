@@ -3,10 +3,10 @@ aiohttp>=3.9.0
 certifi>=2024.2.2
 
 # Unfolded Circle API
-ucapi>=0.5.1
+ucapi>=0.5.2
 
 # Unfolded Circle API Framework
-ucapi-framework>=1.8.2
+ucapi-framework>=1.8.4
 
 # Zero configuration networking
 zeroconf>=0.132.0
