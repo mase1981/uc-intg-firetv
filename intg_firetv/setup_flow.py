@@ -10,10 +10,14 @@ import base64
 import json
 import logging
 from typing import Any
-from ucapi import RequestUserInput, SetupComplete, SetupError, IntegrationSetupError
-from ucapi.api import UserDataResponse
-from ucapi_framework import BaseSetupFlow
-from ucapi_framework.setup import SetupSteps
+from ucapi import (
+    IntegrationSetupError,
+    RequestUserInput,
+    SetupComplete,
+    SetupError,
+    UserDataResponse,
+)
+from ucapi_framework import BaseSetupFlow, SetupSteps
 from intg_firetv.config import FireTVConfig
 from intg_firetv.client import FireTVClient
 
