@@ -65,7 +65,7 @@ jobs:
           mv dist/intg-${{ env.DRIVER_ID }}/* artifacts/bin
           mv artifacts/bin/intg-${{ env.DRIVER_ID }} artifacts/bin/driver
           cp driver.json artifacts/
-          [[ -e driver-logo.png ]] && cp driver-logo.png artifacts/
+          [[ -d assets ]] && cp -r assets artifacts/
           echo "ARTIFACT_NAME=uc-intg-${{ env.DRIVER_ID }}-${{ env.VERSION }}-aarch64" >> $GITHUB_ENV
           
       - name: Create upload artifact archive
