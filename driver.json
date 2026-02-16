@@ -5,7 +5,7 @@
   "name": {
     "en": "Fire TV"
   },
-  "icon": "uc:tv",
+  "icon":"custom:driver-logo.png",
   "description": {
     "en": "Control Fire TV devices via REST API"
   },
