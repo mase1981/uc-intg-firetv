@@ -26,16 +26,15 @@ Perfect companion to the [ADB Fire TV integration](https://github.com/unfoldedci
 | **Navigation** | ✅ Lightning fast | ⏳ Noticeable lag |
 | **App Launch** | ✅ Instant | ⏳ 1-3 seconds |
 | **Setup** | ✅ Simple PIN auth | ⚠️ ADB pairing required |
-| **Power Control** | ❌ Not supported | ✅ Supported |
+| **Power Control** | ✅ Sleep/Wake supported | ✅ Supported |
 
-### 💡 Best Practice: Use Both!
+### 💡 Complete Fire TV Control
 
-Combine this integration with the ADB integration for the ultimate experience:
+This integration provides everything you need for fast Fire TV control:
 
-- **REST API (This)**: Fast navigation, instant app launching, responsive UI control
-- **ADB Integration**: Media player entity, power control, playback state feedback
+- **REST API (This)**: Fast navigation, instant app launching, power control (sleep/wake), responsive UI control
 
-Together they provide the complete Fire TV experience with maximum performance!
+**Optional**: Add [ADB integration](https://github.com/unfoldedcircle/integration-androidtv) for media player entity with playback state feedback.
 
 ---
 
@@ -43,11 +42,13 @@ Together they provide the complete Fire TV experience with maximum performance!
 
 - 🚀 **Ultra-Fast REST API Control** - Instant response (~50ms vs 500-2000ms with ADB)
 - 🎮 **Complete Navigation** - D-Pad, Home, Back, Menu controls
+- ⚡ **Power Control** - Sleep/Wake via REST API (HOME wakes, SLEEP/POWER puts to sleep)
 - ▶️ **Media Controls** - Play/Pause, Fast Forward, Rewind
+- 🔢 **Number Keypad** - Send numbers 0-9 and text input
 - 📱 **Top 5 Quick Launch Apps** - One-tap access to most popular streaming apps
 - 🎯 **Custom App Launcher** - Launch ANY Fire TV app using package name
 - 🎯 **Physical Button Mapping** - Control with UC Remote hardware buttons
-- 📺 **Multi-Page UI** - Navigation, Top Apps, Custom Apps pages
+- 📺 **Multi-Page UI** - Navigation, Top Apps, Keypad, Custom Apps pages
 - 🔒 **Secure Authentication** - PIN-based token authentication
 
 ---
@@ -57,12 +58,6 @@ Together they provide the complete Fire TV experience with maximum performance!
 ### What This Integration Does NOT Support
 
 The Fire TV REST API has inherent limitations:
-
-#### ❌ No Power Control
-- **Cannot turn Fire TV on or off**
-- REST API doesn't expose power commands
-- **Solution**: Use IR blaster, HDMI-CEC, or [ADB integration](https://github.com/unfoldedcircle/integration-androidtv)
-
 
 #### ❌ No Volume Control
 - Volume controlled by TV/AVR, not Fire TV
@@ -74,31 +69,31 @@ The Fire TV REST API has inherent limitations:
 - Cannot detect current app
 - This is a REST API limitation, not integration
 
-### 💡 Recommended: Use Both Integrations
+### 💡 Power Control Now Supported!
 
-For the **best Fire TV experience**:
+This integration now supports **full power control**:
 
-#### REST API Integration (This) - Speed
+#### ✅ Power Commands
+- **HOME** button wakes the Fire TV from sleep
+- **SLEEP** puts the Fire TV to sleep
+- **POWER** toggles power state
+
+No ADB integration needed for basic power control!
+
+### 💡 Optional: Add ADB Integration for Extra Features
+
+For advanced features, you can optionally add the ADB integration:
+
+#### REST API Integration (This) - Speed + Power
 - ✅ Ultra-fast navigation
-- ✅ Instant app launching  
-- ✅ Responsive controls
+- ✅ Instant app launching
+- ✅ Power control (Sleep/Wake)
 - ✅ Physical button mapping
 
-#### ADB Integration - Features
-- ✅ Power on/off
+#### ADB Integration (Optional) - State Feedback
 - ✅ Playback state
 - ✅ Current app detection
-
-**Example Setup:**
-```
-1. Use ADB to power ON Fire TV
-2. Use REST API to navigate & launch Netflix (instant!)
-3. Use ADB media player for playback with state
-4. Use REST API for D-Pad while watching (fast!)
-5. Use ADB to power OFF Fire TV
-```
-
-This gives you **instant speed** with **full features**!
+- ✅ Media player entity
 
 ---
 
@@ -180,8 +175,13 @@ python -m intg_firetv
 ### Navigation
 - D-Pad (↑↓←→), Select, Home, Back, Menu
 
-### Media  
-- Play/Pause, Fast Forward, Rewind, Next, Previous
+### Power
+- **HOME** - Wakes Fire TV from sleep
+- **SLEEP** - Puts Fire TV to sleep
+- **POWER** - Power toggle
+
+### Media
+- Play/Pause, Fast Forward, Rewind
 
 ### Top 5 Pre-configured Apps
 - **Netflix** - Quick launch button
@@ -219,9 +219,13 @@ All commands available as simple commands in UC Remote activities:
 - `DPAD_UP`, `DPAD_DOWN`, `DPAD_LEFT`, `DPAD_RIGHT`
 - `SELECT`, `HOME`, `BACK`, `MENU`
 
+### Power Commands
+- `POWER` - Power toggle
+- `SLEEP` - Put device to sleep
+- `HOME` - Also wakes device from sleep
+
 ### Media Commands
 - `PLAY_PAUSE`, `FAST_FORWARD`, `REWIND`
-- `NEXT`, `PREVIOUS`
 
 ### Top 5 App Commands
 - `LAUNCH_NETFLIX`
