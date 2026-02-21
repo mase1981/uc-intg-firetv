@@ -1,11 +1,11 @@
 {
   "driver_id": "firetv",
-  "version": "1.0.22",
+  "version": "1.0.24",
   "min_core_api": "0.22.0",
   "name": {
     "en": "Fire TV"
   },
-  "icon": "uc:tv",
+  "icon": "custom:driver-logo.png",
   "description": {
     "en": "Control Fire TV devices via REST API"
   },
