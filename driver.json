@@ -1,6 +1,6 @@
 {
   "driver_id": "firetv",
-  "version": "1.0.24",
+  "version": "1.0.27",
   "min_core_api": "0.22.0",
   "name": {
     "en": "Fire TV"
@@ -16,42 +16,30 @@
   },
   "home_page": "https://github.com/mase1981/uc-intg-firetv",
   "documentation": "https://github.com/mase1981/uc-intg-firetv/blob/main/README.md",
-  "release_date": "2026-02-13",
+  "release_date": "2026-02-21",
   "setup_data_schema": {
     "title": {
       "en": "Fire TV Configuration"
     },
     "description": {
-      "en": "Enter your Fire TV IP address and port. A PIN will be displayed on your TV screen."
+      "en": "Fire TV configuration flow"
     },
     "settings": [
-      {
-        "id": "host",
-        "label": {
-          "en": "Fire TV IP Address"
-        },
-        "field": {
-          "text": {
-            "default": "192.168.1.100"
-          }
+        {
+            "id": "info",
+            "label": {
+                "en": "Connect to Fire TV device",
+                "de": "Verbinde zu Fire TV Gerät"
+            },
+            "field": {
+                "label": {
+                    "value": {
+                        "en": "Enter your Fire TV IP address and port as well as a display name in the next screen. A PIN will be displayed on your TV screen.",
+                        "de": "Trage im nächsten Dialog die Fire TV IP Adressse und den Post sowie einen Namen ein. Ein PIN wird auf dem TV angezeigt zur Bestätigung"
+                    }
+                }
+            }
         }
-      },
-      {
-        "id": "port",
-        "label": {
-          "en": "Fire TV Port"
-        },
-        "description": {
-          "en": "Default: 8080 (most devices). Try 8009 for 4K Max Gen 1 if 8080 fails."
-        },
-        "field": {
-          "number": {
-            "value": 8080,
-            "min": 1024,
-            "max": 65535
-          }
-        }
-      }
     ]
   },
   "device_discovery": false

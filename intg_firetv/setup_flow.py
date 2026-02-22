@@ -216,7 +216,7 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
         try:
             config_json = self.config.get_backup_json()
             encoded_data = base64.b64encode(config_json.encode("utf-8")).decode("ascii")
-
+            encoded_data = config_json
             return RequestUserInput(
                 {"en": "Configuration Backup"},
                 [
