@@ -32,7 +32,7 @@ class FireTVClient:
         self.api_key = "0987654321"
         self.session: Optional[aiohttp.ClientSession] = None
         self._last_command_time: float = 0
-        self._wake_timeout: float = 25 * 60
+        self._wake_timeout: float = 5 * 60
         self._device_address = f"{host}:{port}"
 
         # Use HTTP only for localhost/simulator testing
@@ -113,6 +113,10 @@ class FireTVClient:
     def _update_command_time(self):
         import time
         self._last_command_time = time.time()
+
+    def keep_alive(self):
+        """Update command time to prevent wake timeout during active polling."""
+        self._update_command_time()
 
     async def wake_up(self) -> bool:
         await self._ensure_session()
@@ -266,7 +270,7 @@ class FireTVClient:
     async def _send_command_with_retry(self, command_func, command_name: str, max_retries: int = 2):
         if self._should_wake_device():
             await self.wake_up()
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.5)
             await self._recreate_session()
 
         for attempt in range(1, max_retries + 1):

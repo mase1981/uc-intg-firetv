@@ -108,6 +108,8 @@ class FireTVDevice(PollingDevice):
             await test_client.close()
 
             if connected:
+                if self._client:
+                    self._client.keep_alive()
                 if not self._last_poll_succeeded:
                     _LOG.info("[%s] Device is now reachable", self.log_id)
                     self._last_poll_succeeded = True

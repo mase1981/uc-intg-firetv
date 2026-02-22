@@ -203,20 +203,12 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
             raise ValueError(f"PIN verification failed: {err}") from err
 
     async def _handle_backup(self) -> RequestUserInput | SetupError:
-        """
-        Handle backup configuration request with base64 encoding.
-
-        The UC Remote API incorrectly parses JSON inside textarea values and treats
-        keys like "host" as undeclared field definitions. Base64 encoding the JSON
-        prevents this parsing issue.
-        """
-        _LOG.info("Backing up configuration (base64 encoded)")
+        """Handle backup configuration request."""
+        _LOG.info("Backing up configuration")
         self._setup_step = SetupSteps.BACKUP
 
         try:
             config_json = self.config.get_backup_json()
-            encoded_data = base64.b64encode(config_json.encode("utf-8")).decode("ascii")
-            encoded_data = config_json
             return RequestUserInput(
                 {"en": "Configuration Backup"},
                 [
@@ -226,7 +218,7 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
                         "field": {
                             "label": {
                                 "value": {
-                                    "en": "Copy the encoded configuration data below and save it in a safe place. "
+                                    "en": "Copy the configuration data below and save it in a safe place. "
                                     "You can use this to restore your configuration after an integration update."
                                 }
                             }
@@ -235,7 +227,7 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
                     {
                         "id": "backup_data",
                         "label": {"en": "Configuration Data (copy this)"},
-                        "field": {"textarea": {"value": encoded_data}},
+                        "field": {"textarea": {"value": config_json}},
                     },
                 ],
             )
