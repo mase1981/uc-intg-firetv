@@ -1,106 +1,48 @@
 # Fire TV Integration for Unfolded Circle Remote Two/3
-![firetc](https://img.shields.io/badge/Fire-TV-red)
+
+![Fire TV](https://img.shields.io/badge/Fire-TV-red)
 [![GitHub Release](https://img.shields.io/github/v/release/mase1981/uc-intg-firetv?style=flat-square)](https://github.com/mase1981/uc-intg-firetv/releases)
 ![License](https://img.shields.io/badge/license-MPL--2.0-blue)
 [![GitHub issues](https://img.shields.io/github/issues/mase1981/uc-intg-firetv?style=flat-square)](https://github.com/mase1981/uc-intg-firetv/issues)
 [![Community Forum](https://img.shields.io/badge/community-forum-blue?style=flat-square)](https://unfolded.community/)
 [![Discord](https://badgen.net/discord/online-members/zGVYf58)](https://discord.gg/zGVYf58)
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/mase1981/uc-intg-firetv/total)
+![GitHub Downloads](https://img.shields.io/github/downloads/mase1981/uc-intg-firetv/total)
 [![Buy Me A Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-yellow.svg)](https://buymeacoffee.com/meirmiyara)
 [![PayPal](https://img.shields.io/badge/PayPal-donate-blue.svg)](https://paypal.me/mmiyara)
 [![Github Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-30363D?&logo=GitHub-Sponsors&logoColor=EA4AAA)](https://github.com/sponsors/mase1981/button)
 
-Control your Amazon Fire TV devices directly from your Unfolded Circle Remote Two/3 using the official **Fire TV REST API** - ultra-fast control with **no ADB required!**
-
-Perfect companion to the [ADB Fire TV integration](https://github.com/unfoldedcircle/integration-androidtv) for lightning-fast navigation and app launching.
+Control your Amazon Fire TV devices directly from your Unfolded Circle Remote Two/3 using the official **Fire TV REST API** with instant response times.
 
 ---
 
-## 🌟 Why This Integration?
+## Features
 
-### Fast REST API vs Slow ADB
-
-| Feature | This Integration (REST API) | ADB Integration |
-|---------|----------------------------|-----------------|
-| **Response Time** | ⚡ Instant (~50ms) | 🐌 Slow (~500-2000ms) |
-| **Navigation** | ✅ Lightning fast | ⏳ Noticeable lag |
-| **App Launch** | ✅ Instant | ⏳ 1-3 seconds |
-| **Setup** | ✅ Simple PIN auth | ⚠️ ADB pairing required |
-| **Power Control** | ✅ Sleep/Wake supported | ✅ Supported |
-
-### 💡 Complete Fire TV Control
-
-This integration provides everything you need for fast Fire TV control:
-
-- **REST API (This)**: Fast navigation, instant app launching, power control (sleep/wake), responsive UI control
-
-**Optional**: Add [ADB integration](https://github.com/unfoldedcircle/integration-androidtv) for media player entity with playback state feedback.
+- **Instant Response** - REST API delivers ultra-fast command execution (~50ms)
+- **Complete Navigation** - D-Pad, Home, Back, Menu controls
+- **Power Control** - Sleep/Wake support
+- **Media Controls** - Play/Pause, Fast Forward, Rewind
+- **Number Keypad** - Send numbers 0-9 and text input
+- **Quick Launch Apps** - One-tap access to popular streaming apps
+- **Custom App Launcher** - Launch ANY Fire TV app using package name
+- **Physical Button Mapping** - Map to UC Remote hardware buttons
+- **Secure Authentication** - PIN-based token authentication
 
 ---
 
-## ✨ Features
+## Limitations
 
-- 🚀 **Ultra-Fast REST API Control** - Instant response (~50ms vs 500-2000ms with ADB)
-- 🎮 **Complete Navigation** - D-Pad, Home, Back, Menu controls
-- ⚡ **Power Control** - Sleep/Wake via REST API (HOME wakes, SLEEP/POWER puts to sleep)
-- ▶️ **Media Controls** - Play/Pause, Fast Forward, Rewind
-- 🔢 **Number Keypad** - Send numbers 0-9 and text input
-- 📱 **Top 5 Quick Launch Apps** - One-tap access to most popular streaming apps
-- 🎯 **Custom App Launcher** - Launch ANY Fire TV app using package name
-- 🎯 **Physical Button Mapping** - Control with UC Remote hardware buttons
-- 📺 **Multi-Page UI** - Navigation, Top Apps, Keypad, Custom Apps pages
-- 🔒 **Secure Authentication** - PIN-based token authentication
+### No Volume Control
+Volume is controlled by your TV/AVR, not Fire TV. Use your TV integration or HDMI-CEC.
+
+### No State Feedback
+The REST API cannot query current state - this is a command-only remote entity.
 
 ---
 
-## ⚠️ Important Limitations
-
-### What This Integration Does NOT Support
-
-The Fire TV REST API has inherent limitations:
-
-#### ❌ No Volume Control
-- Volume controlled by TV/AVR, not Fire TV
-- **Solution**: Use TV integration or HDMI-CEC
-
-#### ❌ No State Feedback
-- Cannot query current state
-- Remote entity is **command-only**
-- Cannot detect current app
-- This is a REST API limitation, not integration
-
-### 💡 Power Control Now Supported!
-
-This integration now supports **full power control**:
-
-#### ✅ Power Commands
-- **HOME** button wakes the Fire TV from sleep
-- **SLEEP** puts the Fire TV to sleep
-- **POWER** toggles power state
-
-No ADB integration needed for basic power control!
-
-### 💡 Optional: Add ADB Integration for Extra Features
-
-For advanced features, you can optionally add the ADB integration:
-
-#### REST API Integration (This) - Speed + Power
-- ✅ Ultra-fast navigation
-- ✅ Instant app launching
-- ✅ Power control (Sleep/Wake)
-- ✅ Physical button mapping
-
-#### ADB Integration (Optional) - State Feedback
-- ✅ Playback state
-- ✅ Current app detection
-- ✅ Media player entity
-
----
-
-## 📋 Requirements
+## Requirements
 
 ### Hardware
-- Fire TV 4K Max Gen 2 or compatible with REST API
+- Fire TV 4K Max Gen 2 or compatible device with REST API
 - Unfolded Circle Remote Two or Remote 3
 - Same local network
 
@@ -110,7 +52,7 @@ For advanced features, you can optionally add the ADB integration:
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Option 1: GitHub Release (Recommended)
 
@@ -121,9 +63,20 @@ For advanced features, you can optionally add the ADB integration:
 5. Follow setup wizard
 
 ### Option 2: Docker
+
 ```bash
-docker run -d --name uc-intg-firetv --restart unless-stopped --network host -v $(pwd)/data:/data -e UC_CONFIG_HOME=/data -e UC_INTEGRATION_INTERFACE=0.0.0.0 -e UC_INTEGRATION_HTTP_PORT=9090 -e UC_DISABLE_MDNS_PUBLISH=false ghcr.io/mase1981/uc-intg-firetv:latest
+docker run -d --name uc-intg-firetv \
+  --restart unless-stopped \
+  --network host \
+  -v $(pwd)/data:/data \
+  -e UC_CONFIG_HOME=/data \
+  -e UC_INTEGRATION_INTERFACE=0.0.0.0 \
+  -e UC_INTEGRATION_HTTP_PORT=9090 \
+  -e UC_DISABLE_MDNS_PUBLISH=false \
+  ghcr.io/mase1981/uc-intg-firetv:latest
 ```
+
+Or with docker-compose:
 ```bash
 git clone https://github.com/mase1981/uc-intg-firetv.git
 cd uc-intg-firetv
@@ -143,34 +96,27 @@ python -m intg_firetv
 
 ---
 
-## ⚙️ Setup
+## Setup
 
 ### Step 1: Find Fire TV IP
-
-1. Fire TV: **Settings** → **Network** → Note IP address
+Fire TV: **Settings** → **Network** → Note IP address
 
 ### Step 2: Add Integration
-
 1. UC Remote configurator → **Integrations** → **Add**
 2. Select **Fire TV**
-3. Enter Fire TV IP
+3. Enter Fire TV IP and port (default: 8080)
 4. Click **Next**
 
 ### Step 3: Enter PIN
-
-1. **4-digit PIN appears on TV**
+1. A 4-digit PIN appears on your TV
 2. Enter PIN in UC Remote (within 60 seconds)
 3. Click **Complete**
 
-### Done! ✅
-
-- Fire TV Remote entity appears
-- Config saved permanently
-- No re-authentication needed
+Done! Your Fire TV Remote entity is ready to use.
 
 ---
 
-## 🎮 Controls
+## Controls
 
 ### Navigation
 - D-Pad (↑↓←→), Select, Home, Back, Menu
@@ -183,256 +129,120 @@ python -m intg_firetv
 ### Media
 - Play/Pause, Fast Forward, Rewind
 
-### Top 5 Pre-configured Apps
-- **Netflix** - Quick launch button
-- **Prime Video** - Quick launch button
-- **Disney+** - Quick launch button
-- **Plex** - Quick launch button
-- **Kodi** - Quick launch button
+### Pre-configured Apps
+- Netflix, Prime Video, Disney+, Plex, Kodi
 
-### Launch ANY App with Custom Command
-Use the `custom_app` command to launch any Fire TV app:
+### Custom App Launch
+Launch any app using: `custom_app:com.package.name`
 
-**Format:** `custom_app:com.package.name`
-
-**Popular Examples:**
+**Examples:**
 - YouTube: `custom_app:com.amazon.firetv.youtube`
 - Hulu: `custom_app:com.hulu.plus`
 - HBO Max: `custom_app:com.wbd.stream`
 - Apple TV+: `custom_app:com.apple.atve.amazon.appletv`
 - Spotify: `custom_app:com.spotify.tv.android`
-- VLC: `custom_app:org.videolan.vlc`
-- Silk Browser: `custom_app:com.amazon.cloud9.silkbrowser`
 
-**How to Find Package Names:**
-1. Open Fire TV **Settings** → **Applications** → **Manage Installed Applications**
-2. Select your app → Package name shown at bottom
-3. Use format: `custom_app:package.name.here`
+**Find Package Names:**
+Fire TV **Settings** → **Applications** → **Manage Installed Applications** → Select app → Package name shown at bottom
 
 ---
 
-## 🎯 Activity Usage
+## Activity Commands
 
-All commands available as simple commands in UC Remote activities:
+### Navigation
+`DPAD_UP`, `DPAD_DOWN`, `DPAD_LEFT`, `DPAD_RIGHT`, `SELECT`, `HOME`, `BACK`, `MENU`
 
-### Navigation Commands
-- `DPAD_UP`, `DPAD_DOWN`, `DPAD_LEFT`, `DPAD_RIGHT`
-- `SELECT`, `HOME`, `BACK`, `MENU`
+### Power
+`POWER`, `SLEEP`, `HOME` (also wakes device)
 
-### Power Commands
-- `POWER` - Power toggle
-- `SLEEP` - Put device to sleep
-- `HOME` - Also wakes device from sleep
+### Media
+`PLAY_PAUSE`, `FAST_FORWARD`, `REWIND`
 
-### Media Commands
-- `PLAY_PAUSE`, `FAST_FORWARD`, `REWIND`
+### Apps
+`LAUNCH_NETFLIX`, `LAUNCH_PRIME_VIDEO`, `LAUNCH_DISNEY_PLUS`, `LAUNCH_PLEX`, `LAUNCH_KODI`
 
-### Top 5 App Commands
-- `LAUNCH_NETFLIX`
-- `LAUNCH_PRIME_VIDEO`
-- `LAUNCH_DISNEY_PLUS`
-- `LAUNCH_PLEX`
-- `LAUNCH_KODI`
-
-### Custom App Commands
-Launch any app using: `custom_app:com.package.name`
-
-**Example Activity Sequences:**
-
-**Basic Navigation:**
-```yaml
-1. LAUNCH_NETFLIX
-2. Wait 2 seconds
-3. DPAD_DOWN
-4. SELECT
-```
-
-**Launch Custom App:**
-```yaml
-1. custom_app:com.amazon.firetv.youtube
-2. Wait 3 seconds
-3. DPAD_RIGHT
-4. SELECT
-```
-
-**Multi-Step Flow:**
-```yaml
-1. HOME
-2. Wait 1 second
-3. custom_app:com.spotify.tv.android
-4. Wait 2 seconds
-5. DPAD_DOWN
-6. DPAD_DOWN
-7. SELECT
-8. PLAY_PAUSE
-```
+### Custom
+`custom_app:com.package.name`
 
 ---
 
-## 🛠 Troubleshooting
+## Troubleshooting
 
 ### Fire TV Not Found
-- Verify IP address
-- Check same network
-- Fire TV powered on
-- Test ping
-- Check AP isolation
+- Verify IP address is correct
+- Ensure same network (check AP isolation)
+- Fire TV must be powered on
 
 ### No PIN Displayed
-- Wake Fire TV
-- Check TV input
-- Wait 10 seconds
-- Restart setup
-- Check Fire TV model compatibility
+- Wake Fire TV first
+- Check correct TV input
+- Verify Fire TV model supports REST API
 
 ### Commands Not Working
-- Fire TV powered on
-- Check network
-- Try HOME button
-- View logs
-- Restart integration
-
-### Custom App Not Launching
-- Verify app is installed on Fire TV
-- Check package name spelling (case-sensitive)
-- Use format: `custom_app:com.package.name`
-- View logs for error messages
-- Test with pre-configured top 5 apps first
-
-### Entity Shows OFF/Unknown
-- Check logs
-- Restart UC Remote
-- Reconfigure if needed
+- Try HOME button to wake device
+- Check network connectivity
+- View integration logs
 
 ---
 
-## 🔬 Testing with Simulator
+## Technical Details
 
-```bash
-# Terminal 1
-cd tools
-python firetv_simulator.py
-
-# Terminal 2
-python -m intg_firetv
-
-# Setup: IP: 127.0.0.1, PIN: 1234
-```
+| Property | Value |
+|----------|-------|
+| Protocol | REST API / HTTPS:8080 |
+| Auth | PIN-based token (persistent) |
+| Entity | Remote (command-only) |
+| Response | ~50ms |
 
 ---
 
-## 📊 Technical Details
-
-- **Protocol**: REST API / HTTPS:8080
-- **Auth**: PIN-based token (persistent)
-- **Entity**: Remote only (command-only)
-- **Speed**: ~50ms response time
-
-### API Endpoints
-
-| Endpoint | Purpose |
-|----------|---------|
-| `/v1/FireTV/pin/display` | Request PIN |
-| `/v1/FireTV/pin/verify` | Verify & get token |
-| `/v1/FireTV?action=` | Navigation |
-| `/v1/media?action=` | Media control |
-| `/v1/FireTV/app/{pkg}` | Launch app |
-
----
-
-## 🛠️ Development
-
-### Add Pre-configured Apps
-
-To add more apps to the top 5 quick launch list, edit `intg_firetv/apps.py`:
-
-```python
-FIRE_TV_TOP_APPS = {
-    'your_app': {
-        'name': 'Your App',
-        'package': 'com.example.app',
-        'category': 'streaming',
-        'icon': 'uc:tv',
-    },
-}
-```
-
-**Note:** Users can launch ANY app without modifying code using `custom_app:com.package.name`
-
-### Custom App Command Format
-
-The integration supports launching any Fire TV app dynamically:
-- **Command format**: `custom_app:com.package.name`
-- **Validation**: Automatic package name format validation
-- **Error handling**: Logs invalid package names
-- **No code changes needed**: Works with any installed app
-
-### Build Release
-
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-# GitHub Actions builds automatically
-```
-
----
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork repository
 2. Create feature branch
-3. Test with simulator
+3. Test changes
 4. Submit PR
 
 [Report Bug](https://github.com/mase1981/uc-intg-firetv/issues) · [Request Feature](https://github.com/mase1981/uc-intg-firetv/issues)
 
 ---
 
-## 💰 Support
+## Support
 
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub-pink?style=for-the-badge&logo=github)](https://github.com/sponsors/mase1981)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://www.buymeacoffee.com/mase1981)
 [![PayPal](https://img.shields.io/badge/PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/meirmiyara)
 
-Your support helps maintain this integration. Thank you! ❤️
+---
+
+## License
+
+MPL-2.0 License - See [LICENSE](LICENSE) file
 
 ---
 
-## 📄 License
-
-MIT License - See [LICENSE](LICENSE) file
-
----
-
-## 🙏 Credits
+## Credits
 
 - **Developer**: [Meir Miyara](https://www.linkedin.com/in/meirmiyara/)
 - **Framework**: [Unfolded Circle ucapi](https://github.com/unfoldedcircle/integration-python-library)
-- **SLC-Josh for his incredible find for Rest API x Fire TV**: [SLC-Josh GitHub](https://github.com/SLC-Josh/)
+- **REST API Discovery**: [SLC-Josh](https://github.com/SLC-Josh/)
 
 ---
 
-## 📞 Support & Links
+## Links
 
-- 🐛 [GitHub Issues](https://github.com/mase1981/uc-intg-firetv/issues)
-- 💬 [Discussions](https://github.com/mase1981/uc-intg-firetv/discussions)
-- 👥 [UC Forum](https://unfolded.community/)
-
-### Related
-- [ADB Integration](https://github.com/unfoldedcircle/integration-androidtv) - Companion for media player
-- [WiiM Integration](https://github.com/mase1981/uc-intg-wiim)
-- [UC Developer Docs](https://github.com/unfoldedcircle/core-api)
+- [GitHub Issues](https://github.com/mase1981/uc-intg-firetv/issues)
+- [Discussions](https://github.com/mase1981/uc-intg-firetv/discussions)
+- [UC Community Forum](https://unfolded.community/)
 
 ---
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 Unofficial integration. Not affiliated with Amazon or Unfolded Circle.
 
 - Fire TV is a trademark of Amazon.com, Inc.
 - Unfolded Circle and Remote Two/3 are trademarks of Unfolded Circle ApS
-- Use at your own risk
-- No warranty provided
 
 ---
 
@@ -441,7 +251,5 @@ Unofficial integration. Not affiliated with Amazon or Unfolded Circle.
 Made with ❤️ by [Meir Miyara](https://www.linkedin.com/in/meirmiyara/)
 
 ⭐ Star this repo if you find it useful!
-
-[Report Bug](https://github.com/mase1981/uc-intg-firetv/issues) · [Request Feature](https://github.com/mase1981/uc-intg-firetv/issues) · [Discussions](https://github.com/mase1981/uc-intg-firetv/discussions)
 
 </div>
