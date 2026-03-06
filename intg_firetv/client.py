@@ -231,6 +231,9 @@ class FireTVClient:
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
         _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
 
+        # Add a wak-up before testing connection to handle cases where device is asleep
+        await self.wake_up()
+
         for attempt in range(1, max_retries + 1):
             try:
                 await self._ensure_session()
