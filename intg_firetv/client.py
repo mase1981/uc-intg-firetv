@@ -231,9 +231,6 @@ class FireTVClient:
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
         _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
 
-        # Add a wak-up before testing connection to handle cases where device is asleep
-        await self.wake_up()
-
         for attempt in range(1, max_retries + 1):
             try:
                 await self._ensure_session()
@@ -263,6 +260,10 @@ class FireTVClient:
                 _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
                 await self._recreate_session()
 
+            if attempt < max_retries-1:
+                _LOG.info(f"Attempting wake and retry for connection test (attempt {attempt}/{max_retries})...")
+                await self.wake_up()
+                
             if attempt < max_retries:
                 _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
