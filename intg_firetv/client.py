@@ -261,7 +261,7 @@ class FireTVClient:
                 await self._recreate_session()
 
             if attempt == max_retries-1:
-                _LOG.info(f"Attempting wake and retry for connection test (attempt {attempt}/{max_retries})...")
+                _LOG.info(f"Attempting wake and retry for connection test (attempt {attempt+1}/{max_retries})...")
                 await self.wake_up()
 
             if attempt < max_retries:
