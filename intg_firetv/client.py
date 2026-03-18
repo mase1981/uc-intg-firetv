@@ -271,7 +271,7 @@ class FireTVClient:
         _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
         return False
 
-    async def _send_command_with_retry(self, command_func, command_name: str, max_retries: int = 2):
+    async def _send_command_with_retry(self, command_func, command_name: str, max_retries: int = 2, **send_params):
         if self._should_wake_device():
             await self.wake_up()
             await asyncio.sleep(0.5)
@@ -279,7 +279,7 @@ class FireTVClient:
 
         for attempt in range(1, max_retries + 1):
             try:
-                result = await command_func()
+                result = await command_func( **send_params )
                 self._update_command_time()
                 return result
 
@@ -339,100 +339,117 @@ class FireTVClient:
                 _LOG.error(f"Unexpected error in {command_name}: {e}")
                 raise
 
+    async def _send_command(self, key_action_type: str = "keyUp", **send_params):
+        await self._ensure_session()
+        cmd_name = send_params['cmd_name']
+        url = f"{self._base_url}{send_params['url']}"
+        action = send_params['action']
+        add_key_action_type = send_params['add_key_action_type']
+
+        found_key_action = False
+
+        if hasattr( send_params, "payload"):
+            payload = send_params['payload']
+            if add_key_action_type:
+                if hasattr( payload, "keyActionType"):
+                    payload["keyActionType"] = key_action_type
+                    found_key_action = True
+                elif hasattr( payload, "keyAction"):
+                    if hasattr( payload["keyAction"], "keyActionType"):
+                        payload["keyAction"]["keyActionType"] = key_action_type
+                        found_key_action = True
+                if not found_key_action:
+                    payload["keyActionType"] = key_action_type
+        elif add_key_action_type:
+            payload = {"keyActionType": key_action_type}
+
+        if hasattr( send_params, "info_text"):
+            _LOG.info(send_params['info_text'])
+        _LOG.debug(f"[{cmd_name}]: Sending command {action} (payload: {payload}) to url {url}")
+
+        async with self.session.post(
+            url,
+            headers=self._get_headers(),
+            json=payload if payload else None,
+            timeout=aiohttp.ClientTimeout(total=5)
+        ) as response:
+            response.raise_for_status()
+
+            success = response.status == 200
+            if success:
+                _LOG.debug(f"✅ [{cmd_name}]: command successful: {action}")
+            else:
+                _LOG.warning(f"❌ [{cmd_name}]: command failed: {action} (status: {response.status})")
+            return success
+
     async def send_navigation_command(self, action: str) -> bool:
-        async def _send():
-            await self._ensure_session()
-            url = f"{self._base_url}/v1/FireTV?action={action}"
+        cmd_name = f"navigation:{action}"
+        url = f"/v1/FireTV?action={action}"
+        payload = {"keyActionType": "{key_action_type}"}
 
-            _LOG.debug(f"Sending navigation command: {action}")
-
-            async with self.session.post(
-                url,
-                headers=self._get_headers(),
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                response.raise_for_status()
-
-                success = response.status == 200
-                if success:
-                    _LOG.debug(f"✅ Navigation command successful: {action}")
-                else:
-                    _LOG.warning(f"❌ Navigation command failed: {action} (status: {response.status})")
-                return success
+        send_args = {
+            "cmd_name": cmd_name,
+            "action": action,
+            "add_key_action_type": True,
+            "url": url,
+            "payload": payload
+        }
 
         try:
-            return await self._send_command_with_retry(_send, f"navigation:{action}")
+            return await self._send_command_with_retry(self._send_command, cmd_name, **send_args)
         except TokenInvalidError:
             raise
         except Exception as e:
-            _LOG.error(f"Error sending navigation command {action}: {e}")
+            _LOG.error(f"Error sending command {cmd_name}: {e}")
             return False
 
     async def send_media_command(
         self,
         action: str,
-        direction: Optional[str] = None,
-        key_action_type: str = "keyDown"
+        direction: Optional[str] = None
     ) -> bool:
-        async def _send():
-            await self._ensure_session()
-            url = f"{self._base_url}/v1/media?action={action}"
-
-            payload = {}
-            if action == 'scan' and direction:
+        cmd_name = f"media:{action}"
+        url = f"/v1/media?action={action}"
+        if action == 'scan' and direction:
                 payload = {
                     "direction": direction,
-                    "keyAction": {"keyActionType": key_action_type}
+                    "keyAction": {"keyActionType": "{key_action_type}"}
                 }
 
-            _LOG.debug(f"Sending media command: {action} (payload: {payload})")
-
-            async with self.session.post(
-                url,
-                headers=self._get_headers(),
-                json=payload if payload else None,
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                response.raise_for_status()
-
-                success = response.status == 200
-                if success:
-                    _LOG.debug(f"✅ Media command successful: {action}")
-                else:
-                    _LOG.warning(f"❌ Media command failed: {action} (status: {response.status})")
-                return success
+        send_args = {
+            "cmd_name": cmd_name,
+            "action": action,
+            "add_key_action_type": True,
+            "url": url,
+            "payload": payload
+        }
 
         try:
-            return await self._send_command_with_retry(_send, f"media:{action}")
+            return await self._send_command_with_retry(self._send_command, cmd_name, **send_args)
         except TokenInvalidError:
             raise
         except Exception as e:
-            _LOG.error(f"Error sending media command {action}: {e}")
+            _LOG.error(f"Error sending command {cmd_name}: {e}")
             return False
 
     async def launch_app(self, package_name: str) -> bool:
-        async def _send():
-            await self._ensure_session()
-            url = f"{self._base_url}/v1/FireTV/app/{package_name}"
+        cmd_name = f"app:{package_name}"
+        url = f"/v1/FireTV/app/{package_name}"
+        if action == 'scan' and direction:
+                payload = {
+                    "direction": direction,
+                    "keyAction": {"keyActionType": "{key_action_type}"}
+                }
 
-            _LOG.info(f"Launching app: {package_name}")
-
-            async with self.session.post(
-                url,
-                headers=self._get_headers(),
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                response.raise_for_status()
-
-                success = response.status == 200
-                if success:
-                    _LOG.info(f"✅ App launch successful: {package_name}")
-                else:
-                    _LOG.warning(f"❌ App launch failed: {package_name} (status: {response.status})")
-                return success
-
+        send_args = {
+            "cmd_name": cmd_name,
+            "action": package_name,
+            "add_key_action_type": False,
+            "url": url,
+            "info_text": f"Launching app: {package_name}"
+        }
         try:
-            return await self._send_command_with_retry(_send, f"app:{package_name}")
+            return await self._send_command_with_retry(self._send_command, cmd_name, **send_args)
         except TokenInvalidError:
             raise
         except Exception as e:
@@ -446,7 +463,7 @@ class FireTVClient:
 
             json_payload = {'text': text}
 
-            _LOG.info(f"Sending text: {text}, {json_payload}")           
+            _LOG.info(f"Sending text: {text}, {json_payload}")
 
             async with self.session.post(
                 url,
