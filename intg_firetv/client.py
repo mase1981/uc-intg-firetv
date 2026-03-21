@@ -8,12 +8,14 @@ Fire TV REST API Client Implementation.
 import asyncio
 import logging
 import ssl
+import json
 from typing import Optional
 
 import aiohttp
 from aiohttp import ClientResponseError, ClientOSError
 from aiohttp.client_exceptions import ServerTimeoutError, ClientConnectionError
 import certifi
+from intg_firetv.helper import get_my_name, DebounceTimer, AsyncDebounceTimer
 
 _LOG = logging.getLogger(__name__)
 
@@ -34,6 +36,9 @@ class FireTVClient:
         self._last_command_time: float = 0
         self._wake_timeout: float = 5 * 60
         self._device_address = f"{host}:{port}"
+        self._long_press_last_command: str = ""
+        self._long_press_timeout: float = 300/1000
+        self._long_press_timer = AsyncDebounceTimer(self._long_press_timeout)
 
         # Use HTTP only for localhost/simulator testing
         # Real Fire TV devices always use HTTPS on port 8080
@@ -41,12 +46,12 @@ class FireTVClient:
             self._use_https = False
             self._base_url = f"http://{self.host}:{self.port}"
             self._wake_url = f"http://{self.host}:{self.port}/apps/FireTVRemote"
-            _LOG.info("Using HTTP for localhost/simulator")
+            #_LOG.info("Using HTTP for localhost/simulator")
         else:
             self._use_https = True
             self._base_url = f"https://{self.host}:{self.port}"
             self._wake_url = f"http://{self.host}:8009/apps/FireTVRemote"
-            _LOG.info(f"Using HTTPS for Fire TV device (control: {self.port}, wake: 8009)")
+            #_LOG.info(f"Using HTTPS for Fire TV device (control: {self.port}, wake: 8009)")
 
     async def __aenter__(self):
         await self._ensure_session()
@@ -229,13 +234,15 @@ class FireTVClient:
             return None
 
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
-        _LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
+        # remove log cluttering information
+        #_LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
 
         for attempt in range(1, max_retries + 1):
             try:
                 await self._ensure_session()
 
-                _LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
+                # remove log cluttering information
+                #_LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
 
                 async with self.session.get(
                     f"{self._base_url}/",
@@ -243,10 +250,11 @@ class FireTVClient:
                 ) as response:
                     reachable = response.status in [200, 400, 401, 403, 404, 405]
                     if reachable:
-                        _LOG.info(f"✅ Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
+                        # remove log cluttering information
+                        #_LOG.info(f"✅ Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
                         return True
                     else:
-                        _LOG.warning(f"❌️ Unexpected response status: {response.status} (attempt {attempt})")
+                        _LOG.warning(f"❌️ Unexpected response to Connection attempt {attempt}/{max_retries}. status: {response.status} (attempt {attempt})")
 
             except asyncio.TimeoutError:
                 _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
@@ -271,6 +279,11 @@ class FireTVClient:
         _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
         return False
 
+    async def _key_up(self, **send_params):
+        cmd = self._long_press_last_command
+        self._long_press_last_command = ""
+        await self._send_command_with_retry(self._send_command, cmd, **send_params)
+
     async def _send_command_with_retry(self, command_func, command_name: str, max_retries: int = 2, **send_params):
         if self._should_wake_device():
             await self.wake_up()
@@ -279,6 +292,7 @@ class FireTVClient:
 
         for attempt in range(1, max_retries + 1):
             try:
+                _LOG.debug(f"Sending command {command_name}, attempt {attempt}, params {send_params}")
                 result = await command_func( **send_params )
                 self._update_command_time()
                 return result
@@ -339,23 +353,40 @@ class FireTVClient:
                 _LOG.error(f"Unexpected error in {command_name}: {e}")
                 raise
 
-    async def _send_command(self, key_action_type: str = "keyUp", **send_params):
+    async def _send_command(self, **send_params):
+
         await self._ensure_session()
         cmd_name = send_params['cmd_name']
         url = f"{self._base_url}{send_params['url']}"
         action = send_params['action']
         add_key_action_type = send_params['add_key_action_type']
 
+        long_key_press = False
+        only_release_key = False
+
+        if add_key_action_type:
+            if "long_key_press" in send_params:
+                long_key_press = send_params['long_key_press']
+            if long_key_press:
+                key_action_type = "keyDown"
+            else:
+                if "only_release_key" in send_params:
+                    only_release_key = send_params['only_release_key']
+                if only_release_key:
+                    key_action_type = "keyUp"
+                else:
+                    key_action_type = "keyDownUp"
+
         found_key_action = False
 
-        if hasattr( send_params, "payload"):
+        if "payload" in send_params:
             payload = send_params['payload']
             if add_key_action_type:
-                if hasattr( payload, "keyActionType"):
+                if hasattr(payload, "keyActionType"):
                     payload["keyActionType"] = key_action_type
                     found_key_action = True
-                elif hasattr( payload, "keyAction"):
-                    if hasattr( payload["keyAction"], "keyActionType"):
+                elif hasattr(payload, "keyAction"):
+                    if hasattr(payload["keyAction"], "keyActionType"):
                         payload["keyAction"]["keyActionType"] = key_action_type
                         found_key_action = True
                 if not found_key_action:
@@ -363,36 +394,43 @@ class FireTVClient:
         elif add_key_action_type:
             payload = {"keyActionType": key_action_type}
 
-        if hasattr( send_params, "info_text"):
+        json_payload = payload
+
+        if "info_text" in send_params:
             _LOG.info(send_params['info_text'])
-        _LOG.debug(f"[{cmd_name}]: Sending command {action} (payload: {payload}) to url {url}")
+        _LOG.debug(f"[{cmd_name}]: Sending command {action} (payload: {json_payload}) to url {url}")
 
         async with self.session.post(
             url,
             headers=self._get_headers(),
-            json=payload if payload else None,
+            json=json_payload,
             timeout=aiohttp.ClientTimeout(total=5)
         ) as response:
             response.raise_for_status()
 
             success = response.status == 200
             if success:
-                _LOG.debug(f"✅ [{cmd_name}]: command successful: {action}")
+                _LOG.debug(f"✅ [{cmd_name}]: command successful")
+                if long_key_press:
+                    send_params['long_key_press'] = False
+                    send_params['only_release_key'] = True
+                    self._long_press_last_command = cmd_name
+                    self._long_press_timer.trigger(self._key_up,**send_params)
+                    _LOG.info(f"🕛 Long key press: timer started for keyUp for command {cmd_name}")
             else:
-                _LOG.warning(f"❌ [{cmd_name}]: command failed: {action} (status: {response.status})")
+                _LOG.warning(f"❌ [{cmd_name}]: command failed (status: {response.status})")
             return success
 
-    async def send_navigation_command(self, action: str) -> bool:
+    async def send_navigation_command(self, action: str, long_key_press: bool = False) -> bool:
         cmd_name = f"navigation:{action}"
         url = f"/v1/FireTV?action={action}"
-        payload = {"keyActionType": "{key_action_type}"}
 
         send_args = {
             "cmd_name": cmd_name,
             "action": action,
             "add_key_action_type": True,
             "url": url,
-            "payload": payload
+            "long_key_press": long_key_press
         }
 
         try:
@@ -406,22 +444,26 @@ class FireTVClient:
     async def send_media_command(
         self,
         action: str,
-        direction: Optional[str] = None
+        direction: Optional[str] = None,
+        long_key_press: Optional[bool] = False
     ) -> bool:
         cmd_name = f"media:{action}"
         url = f"/v1/media?action={action}"
+        add_key_action_type = False
         if action == 'scan' and direction:
                 payload = {
                     "direction": direction,
                     "keyAction": {"keyActionType": "{key_action_type}"}
                 }
+                add_key_action_type = True
 
         send_args = {
             "cmd_name": cmd_name,
             "action": action,
-            "add_key_action_type": True,
+            "add_key_action_type": add_key_action_type,
             "url": url,
-            "payload": payload
+            "payload": payload,
+            "long_key_press": long_key_press
         }
 
         try:
@@ -435,11 +477,6 @@ class FireTVClient:
     async def launch_app(self, package_name: str) -> bool:
         cmd_name = f"app:{package_name}"
         url = f"/v1/FireTV/app/{package_name}"
-        if action == 'scan' and direction:
-                payload = {
-                    "direction": direction,
-                    "keyAction": {"keyActionType": "{key_action_type}"}
-                }
 
         send_args = {
             "cmd_name": cmd_name,
@@ -457,89 +494,80 @@ class FireTVClient:
             return False
 
     async def send_text(self, text: int) -> bool:
-        async def _send():
-            await self._ensure_session()
-            url = f"{self._base_url}/v1/FireTV/text"
+        cmd_name = f"text:{text}"
+        url = "/v1/FireTV/text"
+        json_payload = {"text": text}
 
-            json_payload = {'text': text}
-
-            _LOG.info(f"Sending text: {text}, {json_payload}")
-
-            async with self.session.post(
-                url,
-                headers=self._get_headers(),
-                json=json_payload,
-                timeout=aiohttp.ClientTimeout(total=5)
-            ) as response:
-                response.raise_for_status()
-                success = response.status == 200
-                if success:
-                    _LOG.debug(f"✅ Text sent successful: {text}")
-                else:
-                    _LOG.warning(f"❌ Text failed to send: {text} (status: {response.status})")
-                return success
+        send_args = {
+            "cmd_name": cmd_name,
+            "action": text,
+            "add_key_action_type": False,
+            "url": url,
+            "info_text": f"Sending text: {text}, {json_payload}",
+            "payload": json_payload
+        }
 
         try:
-            return await self._send_command_with_retry(_send, f"text:{text}")
+            return await self._send_command_with_retry(self._send_command, cmd_name, **send_args)
         except TokenInvalidError:
             raise
         except Exception as e:
             _LOG.error(f"Error sending keycode {text}: {e}")
             return False
 
-    async def dpad_up(self) -> bool:
-        return await self.send_navigation_command("dpad_up")
+    async def dpad_up(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("dpad_up",long_key_press)
 
-    async def dpad_down(self) -> bool:
-        return await self.send_navigation_command("dpad_down")
+    async def dpad_down(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("dpad_down",long_key_press)
 
-    async def dpad_left(self) -> bool:
-        return await self.send_navigation_command("dpad_left")
+    async def dpad_left(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("dpad_left",long_key_press)
 
-    async def dpad_right(self) -> bool:
-        return await self.send_navigation_command("dpad_right")
+    async def dpad_right(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("dpad_right",long_key_press)
 
-    async def select(self) -> bool:
-        return await self.send_navigation_command("select")
+    async def select(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("select",long_key_press)
 
-    async def home(self) -> bool:
-        return await self.send_navigation_command("home")
+    async def home(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("home",long_key_press)
 
-    async def back(self) -> bool:
-        return await self.send_navigation_command("back")
+    async def back(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("back",long_key_press)
 
-    async def backspace(self) -> bool:
-        return await self.send_navigation_command("backspace")
+    async def backspace(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("backspace",long_key_press)
 
-    async def menu(self) -> bool:
-        return await self.send_navigation_command("menu")
+    async def menu(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("menu",long_key_press)
 
-    async def epg(self) -> bool:
-        return await self.send_navigation_command("epg")
+    async def epg(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("epg",long_key_press)
 
-    async def volume_up(self) -> bool:
-        return await self.send_navigation_command("volume_up")
+    async def volume_up(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("volume_up",long_key_press)
 
-    async def volume_down(self) -> bool:
-        return await self.send_navigation_command("volume_down")
+    async def volume_down(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("volume_down",long_key_press)
 
-    async def mute(self) -> bool:
-        return await self.send_navigation_command("mute")
+    async def mute(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("mute",long_key_press)
 
-    async def power(self) -> bool:
-        return await self.send_navigation_command("power")
+    async def power(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("power",long_key_press)
 
-    async def sleep(self) -> bool:
-        return await self.send_navigation_command("sleep")
+    async def sleep(self, long_key_press:bool = False) -> bool:
+        return await self.send_navigation_command("sleep",long_key_press)
 
-    async def play_pause(self) -> bool:
-        return await self.send_media_command("play")
+    async def play_pause(self, long_key_press:bool = False) -> bool:
+        return await self.send_media_command("play",long_key_press)
 
-    async def pause(self) -> bool:
-        return await self.send_media_command("pause")
+    async def pause(self, long_key_press:bool = False) -> bool:
+        return await self.send_media_command("pause",long_key_press)
 
-    async def fast_forward(self) -> bool:
-        return await self.send_media_command("scan", direction="forward")
+    async def fast_forward(self, long_key_press:bool = False) -> bool:
+        return await self.send_media_command("scan", direction="forward",long_key_press=long_key_press)
 
-    async def rewind(self) -> bool:
-        return await self.send_media_command("scan", direction="back")
+    async def rewind(self, long_key_press:bool = False) -> bool:
+        return await self.send_media_command("scan", direction="back",long_key_press=long_key_press)

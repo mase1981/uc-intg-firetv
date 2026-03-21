@@ -16,9 +16,9 @@ from intg_firetv.apps import FIRE_TV_TOP_APPS
 from intg_firetv.config import FireTVConfig
 from intg_firetv.device import FireTVDevice
 from intg_firetv.client import TokenInvalidError
+from intg_firetv.helper import get_my_name
 
 _LOG = logging.getLogger(__name__)
-
 
 class FireTVRemote(Remote):
     """Fire TV Remote entity."""
@@ -287,35 +287,39 @@ class FireTVRemote(Remote):
         params: Optional[Dict[str, Any]] = None
     ) -> StatusCodes:
         """Handle remote commands."""
-        _LOG.info("[%s] Command: %s %s", self.id, cmd_id, params or "")
+
+        _LOG.info(f"[{self.id},{get_my_name()}] Handling command: {cmd_id} {params or ''}")
+        long_key_press = False
 
         try:
             if cmd_id == "on":
                 self.attributes[Attributes.STATE] = States.ON
                 return StatusCodes.OK
-
             if cmd_id == "off":
                 self.attributes[Attributes.STATE] = States.OFF
                 return StatusCodes.OK
-
             if cmd_id == "toggle":
                 new_state = States.OFF if self.attributes[Attributes.STATE] == States.ON else States.ON
                 self.attributes[Attributes.STATE] = new_state
                 return StatusCodes.OK
-
             if cmd_id == "send_cmd" and params and 'command' in params:
                 command = params['command']
+                if 'repeat' in params:
+                    if params['repeat'] == 4:
+                        long_key_press = True
             else:
                 command = cmd_id
 
-            success = await self._device.send_command(command)
+            _LOG.debug(f"[{self.id},{get_my_name()}] Executing device command: {command}, long key press={long_key_press}")
+
+            success = await self._device.send_command(command,long_key_press)
             return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
 
         except TokenInvalidError as e:
-            _LOG.error("[%s] AUTHENTICATION TOKEN INVALID: %s", self.id, e)
-            _LOG.error("[%s] User must re-run setup to obtain new authentication token", self.id)
+            _LOG.error(f"[{self.id},{get_my_name()}] AUTHENTICATION TOKEN INVALID: {e}")
+            _LOG.error(f"[{self.id},{get_my_name()}] User must re-run setup to obtain new authentication token")
             return StatusCodes.UNAUTHORIZED
 
         except Exception as e:
-            _LOG.error("[%s] Error executing command: %s", self.id, e, exc_info=True)
+            _LOG.error(f"[{self.id},{get_my_name()}] Error executing command: {e}", exc_info=True)
             return StatusCodes.SERVER_ERROR
