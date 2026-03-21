@@ -18,6 +18,7 @@ class FireTVConfig:
     host: str
     port: int = 8080
     token: str = ""
+    long_press_timeout: int = 300
 
 
 class FireTVConfigManager(BaseConfigManager[FireTVConfig]):

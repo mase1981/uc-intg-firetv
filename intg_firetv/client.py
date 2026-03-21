@@ -18,6 +18,7 @@ import certifi
 from intg_firetv.helper import get_my_name, DebounceTimer, AsyncDebounceTimer
 
 _LOG = logging.getLogger(__name__)
+_LOG.setLevel(10)
 
 ERROR_OS_WAIT = 0.5
 
@@ -27,7 +28,7 @@ class TokenInvalidError(Exception):
 
 
 class FireTVClient:
-    def __init__(self, host: str, port: int = 8080, token: Optional[str] = None):
+    def __init__(self, host: str, port: int = 8080, token: Optional[str] = None, long_press_timeout: Optional[int] = 300):
         self.host = host
         self.port = port
         self.token = token
@@ -37,7 +38,7 @@ class FireTVClient:
         self._wake_timeout: float = 5 * 60
         self._device_address = f"{host}:{port}"
         self._long_press_last_command: str = ""
-        self._long_press_timeout: float = 300/1000
+        self._long_press_timeout: float = long_press_timeout/1000
         self._long_press_timer = AsyncDebounceTimer(self._long_press_timeout)
 
         # Use HTTP only for localhost/simulator testing
@@ -378,21 +379,27 @@ class FireTVClient:
                     key_action_type = "keyDownUp"
 
         found_key_action = False
+        payload = None
 
         if "payload" in send_params:
             payload = send_params['payload']
+            _LOG.debug(f"[{cmd_name}]: Payload found: {payload}")
             if add_key_action_type:
-                if hasattr(payload, "keyActionType"):
+                if "keyActionType" in payload:
                     payload["keyActionType"] = key_action_type
                     found_key_action = True
-                elif hasattr(payload, "keyAction"):
-                    if hasattr(payload["keyAction"], "keyActionType"):
+                    _LOG.debug(f"[{cmd_name}]: keyActionType set to: {key_action_type}")
+                elif "keyAction" in payload:
+                    _LOG.debug(f"[{cmd_name}]: keyAction found")
+                    if "keyActionType" in payload["keyAction"]:
                         payload["keyAction"]["keyActionType"] = key_action_type
                         found_key_action = True
+                        _LOG.debug(f"[{cmd_name}]: keyAction/keyActionType set to: {key_action_type}")
                 if not found_key_action:
                     payload["keyActionType"] = key_action_type
         elif add_key_action_type:
             payload = {"keyActionType": key_action_type}
+            _LOG.debug(f"[{cmd_name}]: Default keyActionType added: {key_action_type}")
 
         json_payload = payload
 
@@ -456,7 +463,8 @@ class FireTVClient:
                     "keyAction": {"keyActionType": "{key_action_type}"}
                 }
                 add_key_action_type = True
-
+        else:
+            payload = None
         send_args = {
             "cmd_name": cmd_name,
             "action": action,

@@ -59,7 +59,8 @@ class FireTVDevice(PollingDevice):
         self._client = FireTVClient(
             host=self._device_config.host,
             port=self._device_config.port,
-            token=self._device_config.token
+            token=self._device_config.token,
+            long_press_timeout=self._device_config.long_press_timeout
         )
 
         connected = await self._client.test_connection(max_retries=3, retry_delay=2.0)
@@ -92,7 +93,8 @@ class FireTVDevice(PollingDevice):
             test_client = FireTVClient(
                 host=self._device_config.host,
                 port=self._device_config.port,
-                token=self._device_config.token
+                token=self._device_config.token,
+                long_press_timeout=self._device_config.long_press_timeout
             )
 
             connected = await test_client.test_connection(max_retries=1, retry_delay=1.0)
@@ -194,8 +196,13 @@ class FireTVDevice(PollingDevice):
                 _LOG.warning(f"[{self.log_id},{get_my_name()}] Unknown app launch command: {command}")
                 return False
 
-            if command.startswith('text:'):
-                send_text = command.split(':', 1)[1].strip()
+            number_commands = ["1","2","3","4","5","6","7","8","9","0"]
+
+            if command.startswith('text:') or command in number_commands:
+                if command in number_commands:
+                    send_text = command
+                else:
+                    send_text = command.split(':', 1)[1].strip()
                 _LOG.info(f"[{self.log_id},{get_my_name()}] Sending text: {send_text}")
                 return await self._client.send_text(send_text)
 
