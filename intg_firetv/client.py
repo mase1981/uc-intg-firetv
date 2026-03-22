@@ -413,11 +413,13 @@ class FireTVClient:
             json=json_payload,
             timeout=aiohttp.ClientTimeout(total=5)
         ) as response:
-            response.raise_for_status()
-
-            success = response.status == 200
+            success = response.status in [200,500]
             if success:
                 _LOG.debug(f"✅ [{cmd_name}]: command successful")
+                if response.status == 500:
+                    # 500 is considered as "success" as some FireTV devices accept the command but still respond with 500
+                    # we still log the exaxt return message here for debugging
+                    _LOG.debug(f"[{cmd_name}]: Got response: {response.text}")
                 if long_key_press:
                     send_params['long_key_press'] = False
                     send_params['only_release_key'] = True
