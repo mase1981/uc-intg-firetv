@@ -52,6 +52,11 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
                     "label": {"en": "Port (default: 8080)"},
                     "field": {"text": {"value": "8080"}},
                 },
+                {
+                    "id": "long_press_timeout",
+                    "label": {"en": "Timeout for long key press in ms (default: 300)"},
+                    "field": {"number": {"value": 300, "min": 100, "max": 1000, "steps": 50}},
+                }
             ]
         )
 
@@ -161,6 +166,7 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
         host = self._temp_host
         port = self._temp_port
         name = input_values.get("name", f"Fire TV ({host})").strip()
+        long_press_timeout = int(input_values.get("long_press_timeout", 300))
 
         _LOG.info("Step 3: Verifying PIN '%s' with Fire TV", pin)
 
@@ -189,7 +195,8 @@ class FireTVSetupFlow(BaseSetupFlow[FireTVConfig]):
                 name=name,
                 host=host,
                 port=port,
-                token=token
+                token=token,
+                long_press_timeout=long_press_timeout
             )
 
             _LOG.info("Setup completed successfully for %s", name)
