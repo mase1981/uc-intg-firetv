@@ -8,17 +8,15 @@ Fire TV REST API Client Implementation.
 import asyncio
 import logging
 import ssl
-import json
 from typing import Optional
 
 import aiohttp
 from aiohttp import ClientResponseError, ClientOSError
 from aiohttp.client_exceptions import ServerTimeoutError, ClientConnectionError
 import certifi
-from intg_firetv.helper import get_my_name, DebounceTimer, AsyncDebounceTimer
+from intg_firetv.helper import AsyncDebounceTimer
 
 _LOG = logging.getLogger(__name__)
-_LOG.setLevel(10)
 
 ERROR_OS_WAIT = 0.5
 
@@ -47,12 +45,10 @@ class FireTVClient:
             self._use_https = False
             self._base_url = f"http://{self.host}:{self.port}"
             self._wake_url = f"http://{self.host}:{self.port}/apps/FireTVRemote"
-            #_LOG.info("Using HTTP for localhost/simulator")
         else:
             self._use_https = True
             self._base_url = f"https://{self.host}:{self.port}"
             self._wake_url = f"http://{self.host}:8009/apps/FireTVRemote"
-            #_LOG.info(f"Using HTTPS for Fire TV device (control: {self.port}, wake: 8009)")
 
     async def __aenter__(self):
         await self._ensure_session()
@@ -235,15 +231,9 @@ class FireTVClient:
             return None
 
     async def test_connection(self, max_retries: int = 3, retry_delay: float = 3.0) -> bool:
-        # remove log cluttering information
-        #_LOG.info(f"Testing connection to {self._base_url} (will retry up to {max_retries} times)")
-
         for attempt in range(1, max_retries + 1):
             try:
                 await self._ensure_session()
-
-                # remove log cluttering information
-                #_LOG.info(f"Connection attempt {attempt}/{max_retries} to {self.host}:{self.port}...")
 
                 async with self.session.get(
                     f"{self._base_url}/",
@@ -251,8 +241,6 @@ class FireTVClient:
                 ) as response:
                     reachable = response.status in [200, 400, 401, 403, 404, 405]
                     if reachable:
-                        # remove log cluttering information
-                        #_LOG.info(f"✅ Fire TV is reachable at {self.host}:{self.port} (attempt {attempt})")
                         return True
                     else:
                         _LOG.warning(f"❌️ Unexpected response to Connection attempt {attempt}/{max_retries}. status: {response.status} (attempt {attempt})")
@@ -417,9 +405,7 @@ class FireTVClient:
             if success:
                 _LOG.debug(f"✅ [{cmd_name}]: command successful")
                 if response.status == 500:
-                    # 500 is considered as "success" as some FireTV devices accept the command but still respond with 500
-                    # we still log the exaxt return message here for debugging
-                    _LOG.debug(f"[{cmd_name}]: Got response: {response.text}")
+                    _LOG.debug(f"[{cmd_name}]: Got 500 response (treated as success for older FireTV devices)")
                 if long_key_press:
                     send_params['long_key_press'] = False
                     send_params['only_release_key'] = True
@@ -462,7 +448,7 @@ class FireTVClient:
         if action == 'scan' and direction:
                 payload = {
                     "direction": direction,
-                    "keyAction": {"keyActionType": "{key_action_type}"}
+                    "keyAction": {"keyActionType": "keyDownUp"}
                 }
                 add_key_action_type = True
         else:

@@ -14,6 +14,7 @@ from intg_firetv.helper import get_my_name
 
 _LOG = logging.getLogger(__name__)
 
+
 class FireTVDevice(PollingDevice):
     """Fire TV implementation using PollingDevice for automatic reboot survival."""
 

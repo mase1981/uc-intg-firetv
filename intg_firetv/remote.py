@@ -20,6 +20,7 @@ from intg_firetv.helper import get_my_name
 
 _LOG = logging.getLogger(__name__)
 
+
 class FireTVRemote(Remote):
     """Fire TV Remote entity."""
 
