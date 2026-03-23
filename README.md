@@ -166,6 +166,14 @@ Fire TV **Settings** → **Applications** → **Manage Installed Applications** 
 
 ---
 
+## Long key press
+In Version 1.1 the possibility of a native "long key press" is introduced.
+This is implemented by checking the incoming key for "repeat" parameter. If repeat is set to "4", then
+remote sends a "keyDown" command to Fire TV and after a configurable waiting time a "keyUp" event.
+This is how Remote 2 and Remote 3 handle long key presses by sending the command with repeat "4"
+
+---
+
 ## Troubleshooting
 
 ### Fire TV Not Found
