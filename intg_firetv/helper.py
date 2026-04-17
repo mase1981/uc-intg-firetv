@@ -19,6 +19,9 @@ class AsyncDebounceTimer:
         self.delay = delay
         self._task: Optional[asyncio.Task] = None
 
+    def setDelayMS(self, delayMS: int):
+        self.delay = delayMS / 1000
+
     def trigger(self, coro_func: Callable[[], Awaitable], *args, **kwargs):
         if self._task and not self._task.done():
             self._task.cancel()
