@@ -424,7 +424,7 @@ class FireTVClient:
                 _LOG.warning(f"❌ [{cmd_name}]: command failed (status: {response.status})")
             return success
 
-    async def send_navigation_command(self, action: str, long_key_press: bool = False) -> bool:
+    async def send_navigation_command(self, action: str) -> bool:
         cmd_name = f"navigation:{action}"
         url = f"/v1/FireTV?action={action}"
 
@@ -433,7 +433,6 @@ class FireTVClient:
             "action": action,
             "add_key_action_type": True,
             "url": url,
-            "long_key_press": long_key_press
         }
 
         try:
@@ -448,7 +447,6 @@ class FireTVClient:
         self,
         action: str,
         direction: Optional[str] = None,
-        long_key_press: Optional[bool] = False
     ) -> bool:
         cmd_name = f"media:{action}"
         url = f"/v1/media?action={action}"
@@ -467,7 +465,6 @@ class FireTVClient:
             "add_key_action_type": add_key_action_type,
             "url": url,
             "payload": payload,
-            "long_key_press": long_key_press
         }
 
         try:
@@ -519,14 +516,14 @@ class FireTVClient:
             _LOG.error(f"Error sending keycode {text}: {e}")
             return False
 
-    async def play_pause(self, long_key_press:bool = False) -> bool:
+    async def play_pause(self) -> bool:
         return await self.send_media_command("play")
 
-    async def pause(self, long_key_press:bool = False) -> bool:
+    async def pause(self) -> bool:
         return await self.send_media_command("pause")
 
-    async def fast_forward(self, long_key_press:bool = False) -> bool:
+    async def fast_forward(self) -> bool:
         return await self.send_media_command("scan", direction="forward")
 
-    async def rewind(self, long_key_press:bool = False) -> bool:
+    async def rewind(self) -> bool:
         return await self.send_media_command("scan", direction="back")

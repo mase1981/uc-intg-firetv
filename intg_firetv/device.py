@@ -170,7 +170,7 @@ class FireTVDevice(PollingDevice):
             }
 
             if command_lower in media_commands:
-                return await media_commands[command_lower]
+                return await media_commands[command_lower]()
 
             if command.startswith('LAUNCH_'):
                 from intg_firetv.apps import FIRE_TV_TOP_APPS

@@ -292,7 +292,8 @@ class FireTVRemote(Remote):
         """Handle remote commands."""
 
         _LOG.info(f"[{self.id},{get_my_name()}] Handling command: {cmd_id} {params or ''}")
-        command_ctx = CommandContext( command=cmd_id, repeat = 1, delay = 0, hold = 0, key_down = False )
+        command_ctx = CommandContext(command=cmd_id, repeat=1, delay=0, hold=0, key_down=False)
+        token = None
 
         try:
             if cmd_id == "on":
@@ -313,7 +314,7 @@ class FireTVRemote(Remote):
                     command_ctx.hold = params['hold']
                 if 'repeat' in params:
                     command_ctx.repeat = params['repeat']
-                    if params['repeat'] == 4: #special case defined by current implementation: Long key press is reported as repeat = 4 and no hold
+                    if params['repeat'] == 4:
                         if command_ctx.hold == 0:
                             command_ctx.hold = self._device_config.long_press_timeout
                             command_ctx.repeat = 1
@@ -335,4 +336,5 @@ class FireTVRemote(Remote):
             return StatusCodes.SERVER_ERROR
 
         finally:
-            reset_context(token)
+            if token is not None:
+                reset_context(token)
