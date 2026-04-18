@@ -18,8 +18,9 @@ from intg_firetv.device import FireTVDevice
 from intg_firetv.client import TokenInvalidError
 from intg_firetv.helper import get_my_name
 
-_LOG = logging.getLogger(__name__)
+from intg_firetv.commandcontext import CommandContext, get_context, set_context, reset_context, serialize_context
 
+_LOG = logging.getLogger(__name__)
 
 class FireTVRemote(Remote):
     """Fire TV Remote entity."""
@@ -75,6 +76,7 @@ class FireTVRemote(Remote):
             'LAUNCH_DISNEY_PLUS',
             'LAUNCH_PLEX',
             'LAUNCH_KODI',
+            'LAUNCH_SETTINGS',
             '0',
             '1',
             '2',
@@ -290,7 +292,7 @@ class FireTVRemote(Remote):
         """Handle remote commands."""
 
         _LOG.info(f"[{self.id},{get_my_name()}] Handling command: {cmd_id} {params or ''}")
-        long_key_press = False
+        command_ctx = CommandContext( command=cmd_id, repeat = 1, delay = 0, hold = 0, key_down = False )
 
         try:
             if cmd_id == "on":
@@ -304,16 +306,23 @@ class FireTVRemote(Remote):
                 self.attributes[Attributes.STATE] = new_state
                 return StatusCodes.OK
             if cmd_id == "send_cmd" and params and 'command' in params:
-                command = params['command']
+                command_ctx.command = params['command']
+                if 'delay' in params:
+                    command_ctx.delay = params['delay']
+                if 'hold' in params:
+                    command_ctx.hold = params['hold']
                 if 'repeat' in params:
-                    if params['repeat'] == 4:
-                        long_key_press = True
-            else:
-                command = cmd_id
+                    command_ctx.repeat = params['repeat']
+                    if params['repeat'] == 4: #special case defined by current implementation: Long key press is reported as repeat = 4 and no hold
+                        if command_ctx.hold == 0:
+                            command_ctx.hold = self._device_config.long_press_timeout
+                            command_ctx.repeat = 1
 
-            _LOG.debug(f"[{self.id},{get_my_name()}] Executing device command: {command}, long key press={long_key_press}")
+            token = set_context(command_ctx)
 
-            success = await self._device.send_command(command,long_key_press)
+            _LOG.debug(f"[{self.id},{get_my_name()}] Executing device command: {command_ctx.command} with parameters: {serialize_context()}")
+
+            success = await self._device.send_command(command_ctx.command)
             return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
 
         except TokenInvalidError as e:
@@ -324,3 +333,6 @@ class FireTVRemote(Remote):
         except Exception as e:
             _LOG.error(f"[{self.id},{get_my_name()}] Error executing command: {e}", exc_info=True)
             return StatusCodes.SERVER_ERROR
+
+        finally:
+            reset_context(token)

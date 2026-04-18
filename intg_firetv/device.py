@@ -11,6 +11,7 @@ from ucapi_framework import PollingDevice, DeviceEvents
 from intg_firetv.config import FireTVConfig
 from intg_firetv.client import FireTVClient
 from intg_firetv.helper import get_my_name
+from intg_firetv.commandcontext import get_context
 
 _LOG = logging.getLogger(__name__)
 
@@ -130,7 +131,7 @@ class FireTVDevice(PollingDevice):
                 self._last_poll_succeeded = False
                 self.events.emit(DeviceEvents.DISCONNECTED, self.identifier)
 
-    async def send_command(self, command: str, long_key_press: bool = False) -> bool:
+    async def send_command(self, command: str) -> bool:
         """
         Send a command to Fire TV remote.
 
@@ -150,26 +151,16 @@ class FireTVDevice(PollingDevice):
             command_lower = command.lower()
             command_upper = command.upper()
 
-            nav_commands = {
-                'dpad_up': self._client.dpad_up,
-                'dpad_down': self._client.dpad_down,
-                'dpad_left': self._client.dpad_left,
-                'dpad_right': self._client.dpad_right,
-                'select': self._client.select,
-                'home': self._client.home,
-                'back': self._client.back,
-                'backspace': self._client.backspace,
-                'menu': self._client.menu,
-                'epg': self._client.epg,
-                'volume_up': self._client.volume_up,
-                'volume_down': self._client.volume_down,
-                'mute': self._client.mute,
-                'power': self._client.power,
-                'sleep': self._client.sleep,
-            }
+            nav_commands = ['dpad_up','dpad_down','dpad_left','dpad_right','select','home','back','backspace','menu','epg','volume_up','volume_down','mute','power','sleep']
 
             if command_lower in nav_commands:
-                return await nav_commands[command_lower](long_key_press)
+                return await self._client.send_navigation_command(command_lower)
+
+            if command_lower == "settings":
+                # settings key is just an alias for holding the home button longer
+                command_ctx = get_context()
+                command_ctx.hold = 400
+                return await self._client.send_navigation_command('home')
 
             media_commands = {
                 'play_pause': self._client.play_pause,
@@ -179,9 +170,9 @@ class FireTVDevice(PollingDevice):
             }
 
             if command_lower in media_commands:
-                return await media_commands[command_lower](long_key_press)
+                return await media_commands[command_lower]
 
-            if command.startswith('LAUNCH_') or command == "SETTINGS":
+            if command.startswith('LAUNCH_'):
                 from intg_firetv.apps import FIRE_TV_TOP_APPS
 
                 app_name = command.replace('LAUNCH_', '').lower()
@@ -222,7 +213,7 @@ class FireTVDevice(PollingDevice):
             if command.startswith('custom_cmd:'):
                 custom_command = command.split(':', 1)[1].strip().lower()
                 _LOG.info(f"[{self.log_id},{get_my_name()}] Launching custom command: {command}")
-                return await self._client.send_navigation_command(custom_command,long_key_press)
+                return await self._client.send_navigation_command(custom_command)
 
             _LOG.warning(f"[{self.log_id},{get_my_name()}] Unknown command: {command}")
             return False
