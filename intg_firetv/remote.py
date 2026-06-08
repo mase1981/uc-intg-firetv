@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 from ucapi import StatusCodes
 from ucapi.remote import Attributes, Features, Remote, States
 from ucapi.ui import Buttons
+from ucapi_framework import RemoteEntity
 
 from intg_firetv.apps import FIRE_TV_TOP_APPS
 from intg_firetv.config import FireTVConfig
@@ -22,7 +23,7 @@ from intg_firetv.commandcontext import CommandContext, get_context, set_context,
 
 _LOG = logging.getLogger(__name__)
 
-class FireTVRemote(Remote):
+class FireTVRemote(RemoteEntity):
     """Fire TV Remote entity."""
 
     def __init__(self, device_config: FireTVConfig, device: FireTVDevice):
@@ -32,7 +33,7 @@ class FireTVRemote(Remote):
         entity_id = f"remote.{device_config.identifier}"
 
         features = [Features.SEND_CMD, Features.ON_OFF, Features.TOGGLE]
-        attributes = {Attributes.STATE: States.ON}
+        attributes = {Attributes.STATE: States.UNKNOWN}
 
         simple_commands = self._build_simple_commands()
         button_mapping = self._create_button_mapping()
@@ -48,6 +49,21 @@ class FireTVRemote(Remote):
             ui_pages=ui_pages,
             cmd_handler=self._handle_command,
         )
+
+        self.subscribe_to_device(device)
+
+    async def sync_state(self) -> None:
+        """Reflect the device connectivity/power state on the Remote."""
+        device_state = self._device.state
+        if device_state == "ON":
+            state = States.ON
+        elif device_state == "OFF":
+            state = States.OFF
+        elif device_state == "UNAVAILABLE":
+            state = States.UNAVAILABLE
+        else:
+            state = States.UNKNOWN
+        self.update({Attributes.STATE: state})
 
     def _build_simple_commands(self) -> List[str]:
         commands = [
@@ -66,6 +82,8 @@ class FireTVRemote(Remote):
             'VOLUME_DOWN',
             'MUTE',
             'POWER',
+            'POWER_ON',
+            'POWER_OFF',
             'SLEEP',
             'PLAY_PAUSE',
             'PAUSE',
@@ -297,15 +315,17 @@ class FireTVRemote(Remote):
 
         try:
             if cmd_id == "on":
-                self.attributes[Attributes.STATE] = States.ON
-                return StatusCodes.OK
+                success = await self._device.power_on()
+                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
             if cmd_id == "off":
-                self.attributes[Attributes.STATE] = States.OFF
-                return StatusCodes.OK
+                success = await self._device.power_off()
+                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
             if cmd_id == "toggle":
-                new_state = States.OFF if self.attributes[Attributes.STATE] == States.ON else States.ON
-                self.attributes[Attributes.STATE] = new_state
-                return StatusCodes.OK
+                if self._device.state == "ON":
+                    success = await self._device.power_off()
+                else:
+                    success = await self._device.power_on()
+                return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
             if cmd_id == "send_cmd" and params and 'command' in params:
                 command_ctx.command = params['command']
                 if 'delay' in params:

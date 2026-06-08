@@ -242,8 +242,7 @@ class FireTVClient:
                     reachable = response.status in [200, 400, 401, 403, 404, 405]
                     if reachable:
                         return True
-                    else:
-                        _LOG.warning(f"❌️ Unexpected response to Connection attempt {attempt}/{max_retries}. status: {response.status} (attempt {attempt})")
+                    _LOG.warning(f"❌️ Unexpected response to connection attempt {attempt}/{max_retries}. status: {response.status}")
 
             except asyncio.TimeoutError:
                 _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
@@ -257,15 +256,11 @@ class FireTVClient:
                 _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
                 await self._recreate_session()
 
-            if attempt == max_retries-1:
-                _LOG.info(f"Attempting wake and retry for connection test (attempt {attempt+1}/{max_retries})...")
-                await self.wake_up()
-
             if attempt < max_retries:
                 _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
                 await asyncio.sleep(retry_delay)
 
-        _LOG.error(f"❌ Failed to connect to {self.host}:{self.port} after {max_retries} attempts")
+        _LOG.debug(f"Device {self.host}:{self.port} not reachable after {max_retries} attempt(s)")
         return False
 
     async def _key_up(self, **send_params):

@@ -56,6 +56,8 @@ jobs:
               pyinstaller --clean --onedir --name intg-${{ env.DRIVER_ID }} \
                 --add-data driver.json:. \
                 --collect-all zeroconf \
+                --collect-all ucapi \
+                --collect-all ucapi_framework \
                 intg_firetv/__main__.py"
 
       - name: Prepare artifacts
@@ -115,6 +117,8 @@ jobs:
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -132,6 +136,8 @@ jobs:
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
+        with:
+          pattern: uc-intg-*
 
       - name: Extract build archives from downloaded files
         run: |
