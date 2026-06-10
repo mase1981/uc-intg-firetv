@@ -81,6 +81,7 @@ class FireTVDevice(PollingDevice):
         until kicked via DIAL.
         """
         if await client.test_connection(max_retries=1, retry_delay=1.0):
+            self._state = "Available"
             return True
 
         if not wake:
@@ -109,9 +110,11 @@ class FireTVDevice(PollingDevice):
 
         if await self._probe(client, wake=True):
             self._state = "ON"
+            self.push_update()
             _LOG.info("[%s] Successfully connected to Fire TV", self.log_id)
         else:
             self._state = "OFF"
+            self.push_update()
             _LOG.info("[%s] Fire TV not reachable (assuming powered off)", self.log_id)
 
         return client
