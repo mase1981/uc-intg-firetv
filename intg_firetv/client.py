@@ -134,7 +134,7 @@ class FireTVClient:
                     "Content-Type": "text/plain; charset=utf-8",
                     "Content-Length": "0"
                 },
-                timeout=aiohttp.ClientTimeout(total=5)
+                timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
                 if response.status in [200, 201, 204]:
                     _LOG.info(f"✅ Wake-up successful: {response.status}")
@@ -155,7 +155,7 @@ class FireTVClient:
                         "Content-Type": "text/plain; charset=utf-8",
                         "Content-Length": "0"
                     },
-                    timeout=aiohttp.ClientTimeout(total=5)
+                    timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     return response.status in [200, 201, 204]
             except Exception as retry_ex:
@@ -184,7 +184,7 @@ class FireTVClient:
                 url,
                 headers=self._get_headers(include_token=False),
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=15)
+                timeout=aiohttp.ClientTimeout(total=5)
             ) as response:
                 if response.status == 200:
                     _LOG.info("✅ PIN display request successful")
