@@ -81,7 +81,6 @@ class FireTVDevice(PollingDevice):
         until kicked via DIAL.
         """
         if await client.test_connection(max_retries=1, retry_delay=1.0):
-            self._state = "Available"
             return True
 
         if not wake:
