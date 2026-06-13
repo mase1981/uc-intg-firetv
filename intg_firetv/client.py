@@ -306,10 +306,6 @@ class FireTVClient:
                     _LOG.error(f"❌ {command_name} failed after {max_retries} attempts")
                     raise
 
-            except (ServerTimeoutError, ClientConnectionError) as ex:
-                _LOG.error("[%s] Network error during command: %s", self._device_address, ex)
-                raise
-
             except ClientOSError as ex:
                 _LOG.warning(
                     "[%s] OS error detected (WiFi not ready after wake), waiting %ss before retry",
@@ -331,6 +327,10 @@ class FireTVClient:
                         retry_ex
                     )
                     raise
+
+            except (ServerTimeoutError, ClientConnectionError) as ex:
+                _LOG.error("[%s] Network error during command: %s", self._device_address, ex)
+                raise
 
             except Exception as e:
                 _LOG.error(f"Unexpected error in {command_name}: {e}")
