@@ -280,28 +280,6 @@ class FireTVClient:
                 self._update_command_time()
                 return result
 
-            except ClientOSError as ex:
-                _LOG.warning(
-                    "[%s] OS error detected (WiFi not ready after wake), waiting %ss before retry",
-                    self._device_address,
-                    ERROR_OS_WAIT
-                )
-
-                try:
-                    await asyncio.sleep(ERROR_OS_WAIT)
-                    _LOG.info("[%s] Retrying command after WiFi stabilization", self._device_address)
-                    result = await command_func()
-                    self._update_command_time()
-                    return result
-
-                except Exception as retry_ex:
-                    _LOG.error(
-                        "[%s] Command failed even after WiFi wait period: %s",
-                        self._device_address,
-                        retry_ex
-                    )
-                    raise
-
             except aiohttp.ClientResponseError as e:
                 if e.status in [401, 403]:
                     _LOG.error(f"❌ AUTHENTICATION FAILED: Token is invalid or expired")
@@ -331,6 +309,28 @@ class FireTVClient:
             except (ServerTimeoutError, ClientConnectionError) as ex:
                 _LOG.error("[%s] Network error during command: %s", self._device_address, ex)
                 raise
+
+            except ClientOSError as ex:
+                _LOG.warning(
+                    "[%s] OS error detected (WiFi not ready after wake), waiting %ss before retry",
+                    self._device_address,
+                    ERROR_OS_WAIT
+                )
+
+                try:
+                    await asyncio.sleep(ERROR_OS_WAIT)
+                    _LOG.info("[%s] Retrying command after WiFi stabilization", self._device_address)
+                    result = await command_func()
+                    self._update_command_time()
+                    return result
+
+                except Exception as retry_ex:
+                    _LOG.error(
+                        "[%s] Command failed even after WiFi wait period: %s",
+                        self._device_address,
+                        retry_ex
+                    )
+                    raise
 
             except Exception as e:
                 _LOG.error(f"Unexpected error in {command_name}: {e}")
