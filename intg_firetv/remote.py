@@ -314,6 +314,8 @@ class FireTVRemote(RemoteEntity):
         token = None
 
         try:
+            token = set_context(command_ctx)
+
             if cmd_id == "on":
                 success = await self._device.power_on()
                 return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
@@ -338,8 +340,6 @@ class FireTVRemote(RemoteEntity):
                         if command_ctx.hold == 0:
                             command_ctx.hold = self._device_config.long_press_timeout
                             command_ctx.repeat = 1
-
-            token = set_context(command_ctx)
 
             _LOG.debug(f"[{self.id},{get_my_name()}] Executing device command: {command_ctx.command} with parameters: {serialize_context()}")
 
