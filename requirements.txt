@@ -6,7 +6,7 @@ certifi>=2024.2.2
 ucapi>=0.7.0
 
 # Unfolded Circle API Framework
-ucapi-framework>=1.9.5
+ucapi-framework>=1.9.6
 
 # Zero configuration networking
 zeroconf>=0.132.0
