@@ -5,6 +5,7 @@ Fire TV Remote Entity Implementation.
 :license: MPL-2.0, see LICENSE for more details.
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -328,6 +329,27 @@ class FireTVRemote(RemoteEntity):
                 else:
                     success = await self._device.power_on()
                 return StatusCodes.OK if success else StatusCodes.SERVER_ERROR
+            if cmd_id == "send_cmd_sequence" and params and 'sequence' in params:
+                sequence = params['sequence']
+                seq_repeat = params.get('repeat', 1) or 1
+                seq_delay = params.get('delay', 0) or 0
+                seq_hold = params.get('hold', 0) or 0
+
+                all_ok = True
+                for _ in range(seq_repeat):
+                    for command in sequence:
+                        command_ctx.command = command
+                        command_ctx.repeat = 1
+                        command_ctx.delay = 0
+                        command_ctx.hold = seq_hold
+                        command_ctx.key_down = False
+                        if not await self._device.send_command(command):
+                            all_ok = False
+                        if seq_delay > 0:
+                            await asyncio.sleep(seq_delay / 1000)
+
+                return StatusCodes.OK if all_ok else StatusCodes.SERVER_ERROR
+
             if cmd_id == "send_cmd" and params and 'command' in params:
                 command_ctx.command = params['command']
                 if 'delay' in params:
