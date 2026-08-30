@@ -49,7 +49,7 @@ The REST API cannot query current state - this is a command-only remote entity.
 ### Software
 - Fire TV with REST API enabled (default on 4K Max Gen 2)
 - UC Remote firmware 1.7.0+
-- No VPN active on the Fire TV (a VPN blocks the local REST connection — see [Troubleshooting](#fire-tv-not-found))
+- No VPN active on the Fire TV (a VPN blocks the local REST connection - see [Troubleshooting](#fire-tv-not-found))
 
 ---
 
@@ -181,7 +181,7 @@ This is how Remote 2 and Remote 3 handle long key presses by sending the command
 - Verify IP address is correct
 - Ensure same network (check AP isolation)
 - Fire TV must be powered on
-- **Disable any VPN running on the Fire TV.** A VPN app active on the Fire TV routes its traffic off the local network and blocks the REST API connection. The integration cannot connect while the VPN is on — turn it off (or exclude the local network / UC Remote in the VPN's settings).
+- **Disable any VPN running on the Fire TV.** A VPN app active on the Fire TV routes its traffic off the local network and blocks the REST API connection. The integration cannot connect while the VPN is on - turn it off (or exclude the local network / UC Remote in the VPN's settings).
 
 ### No PIN Displayed
 - Wake Fire TV first
