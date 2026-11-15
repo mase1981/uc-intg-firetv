@@ -11,7 +11,7 @@ import ssl
 from typing import Optional
 
 import aiohttp
-from aiohttp import ClientResponseError, ClientOSError
+from aiohttp import ClientOSError
 from aiohttp.client_exceptions import ServerTimeoutError, ClientConnectionError
 import certifi
 from intg_firetv.helper import AsyncDebounceTimer
@@ -239,6 +239,7 @@ class FireTVClient:
                     f"{self._base_url}/",
                     timeout=aiohttp.ClientTimeout(total=12)
                 ) as response:
+                    # Reachability only: this request sends no token, so 401/403 say nothing about it
                     reachable = response.status in [200, 400, 401, 403, 404, 405]
                     if reachable:
                         return True
@@ -280,19 +281,8 @@ class FireTVClient:
                 self._update_command_time()
                 return result
 
-            except aiohttp.ClientResponseError as e:
-                if e.status in [401, 403]:
-                    _LOG.error(f"❌ AUTHENTICATION FAILED: Token is invalid or expired")
-                    _LOG.error(f"❌ Status {e.status}: {e.message}")
-                    _LOG.error(f"❌ SOLUTION: Re-run setup to obtain new authentication token")
-                    _LOG.error(f"❌ This typically happens if pairing was removed from Fire TV settings")
-                    raise TokenInvalidError(
-                        f"Authentication token invalid (HTTP {e.status}). "
-                        "Please re-run setup to re-authenticate."
-                    )
-                else:
-                    _LOG.error(f"HTTP error {e.status} on {command_name}: {e.message}")
-                    raise
+            except TokenInvalidError:
+                raise
 
             except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError) as e:
                 _LOG.warning(f"Connection error on {command_name} (attempt {attempt}/{max_retries}): {e}")
@@ -395,6 +385,14 @@ class FireTVClient:
             json=json_payload,
             timeout=aiohttp.ClientTimeout(total=5)
         ) as response:
+            if response.status in [401, 403]:
+                _LOG.error(f"❌ AUTHENTICATION FAILED: Token is invalid or expired (status {response.status})")
+                _LOG.error(f"❌ SOLUTION: Re-run setup to obtain new authentication token")
+                raise TokenInvalidError(
+                    f"Authentication token invalid (HTTP {response.status}). "
+                    "Please re-run setup to re-authenticate."
+                )
+
             success = response.status in [200,500]
             if success:
                 _LOG.debug(f"✅ [{cmd_name}]: command successful")
