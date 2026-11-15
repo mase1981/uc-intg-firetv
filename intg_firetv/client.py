@@ -38,7 +38,7 @@ class FireTVClient:
         self.session: Optional[aiohttp.ClientSession] = None
         self._device_address = f"{host}:{port}"
         self._long_press_timeout: float = long_press_timeout/1000
-        self._long_press_timer = AsyncDebounceTimer(self._long_press_timeout)
+        self._key_timers: dict[str, AsyncDebounceTimer] = {}
         self._wake_task: Optional[asyncio.Task] = None
 
         # Use HTTP only for localhost/simulator testing
@@ -321,19 +321,21 @@ class FireTVClient:
                 _LOG.debug(f"✅ [{cmd_name}]: command successful")
                 if response.status == 500:
                     _LOG.debug(f"[{cmd_name}]: Got 500 response (treated as success for older FireTV devices)")
+                # One timer per key: a resend of a held key must delay its keyUp, another key must not
+                key_timer = self._key_timers.setdefault(cmd_name, AsyncDebounceTimer(self._long_press_timeout))
                 if long_key_press:
                     command_ctx.key_down = True
-                    self._long_press_timer.setDelayMS(command_ctx.hold)
-                    self._long_press_timer.trigger(self._key_up,**send_params)
-                    _LOG.info(f"🕛 Long key press: timer started for keyUp for command {cmd_name} in {self._long_press_timer.delay*1000}ms")
+                    key_timer.setDelayMS(command_ctx.hold)
+                    key_timer.trigger(self._key_up,**send_params)
+                    _LOG.info(f"🕛 Long key press: timer started for keyUp for command {cmd_name} in {key_timer.delay*1000}ms")
                 else:
                     if (command_ctx.repeat > 1):
                         command_ctx.repeat -= 1
                         command_ctx.key_down = False
                         if command_ctx.delay > 0:
-                            self._long_press_timer.setDelayMS(command_ctx.delay)
-                            self._long_press_timer.trigger(self._send_command,**send_params)
-                            _LOG.info(f"🕛 Repeated key press: timer started for next press {cmd_name} in {self._long_press_timer.delay*1000}ms")
+                            key_timer.setDelayMS(command_ctx.delay)
+                            key_timer.trigger(self._send_command,**send_params)
+                            _LOG.info(f"🕛 Repeated key press: timer started for next press {cmd_name} in {key_timer.delay*1000}ms")
                         else:
                             await self._send_command(**send_params)
             else:
