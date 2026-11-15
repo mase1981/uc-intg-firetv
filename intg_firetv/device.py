@@ -137,7 +137,6 @@ class FireTVDevice(PollingDevice):
             connected = False
 
         if connected:
-            client.keep_alive()
             if self._state != "ON":
                 _LOG.info(f"[{self.log_id},{get_my_name()}] Device is now reachable")
                 self._state = "ON"

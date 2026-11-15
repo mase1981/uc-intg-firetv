@@ -8,10 +8,11 @@ Fire TV REST API Client Implementation.
 import asyncio
 import logging
 import ssl
+import time
+from itertools import count
 from typing import Optional
 
 import aiohttp
-from aiohttp import ClientOSError
 from aiohttp.client_exceptions import ServerTimeoutError, ClientConnectionError
 import certifi
 from intg_firetv.helper import AsyncDebounceTimer
@@ -19,7 +20,9 @@ from intg_firetv.commandcontext import get_context
 
 _LOG = logging.getLogger(__name__)
 
-ERROR_OS_WAIT = 0.5
+WAKE_TIMEOUT = 3.0
+RETRY_INTERVAL = 0.25
+RETRY_WINDOW = 3.0
 
 
 class TokenInvalidError(Exception):
@@ -33,11 +36,10 @@ class FireTVClient:
         self.token = token
         self.api_key = "0987654321"
         self.session: Optional[aiohttp.ClientSession] = None
-        self._last_command_time: float = 0
-        self._wake_timeout: float = 5 * 60
         self._device_address = f"{host}:{port}"
         self._long_press_timeout: float = long_press_timeout/1000
         self._long_press_timer = AsyncDebounceTimer(self._long_press_timeout)
+        self._wake_task: Optional[asyncio.Task] = None
 
         # Use HTTP only for localhost/simulator testing
         # Real Fire TV devices always use HTTPS on port 8080
@@ -75,14 +77,9 @@ class FireTVClient:
             )
             _LOG.debug(f"HTTP session created for {self.host}:{self.port}")
 
-    async def _recreate_session(self):
-        _LOG.debug("Recreating HTTP session...")
-        if self.session and not self.session.closed:
-            await self.session.close()
-        self.session = None
-        await self._ensure_session()
-
     async def close(self):
+        if self._wake_task:
+            self._wake_task.cancel()
         if self.session and not self.session.closed:
             await self.session.close()
             _LOG.debug("HTTP session closed")
@@ -99,27 +96,6 @@ class FireTVClient:
 
         return headers
 
-    def _should_wake_device(self) -> bool:
-        import time
-        current_time = time.time()
-        time_since_last_command = current_time - self._last_command_time
-
-        should_wake = (self._last_command_time == 0 or
-                      time_since_last_command > self._wake_timeout)
-
-        if should_wake:
-            _LOG.info(f"Device idle for {time_since_last_command:.0f}s - waking before command")
-
-        return should_wake
-
-    def _update_command_time(self):
-        import time
-        self._last_command_time = time.time()
-
-    def keep_alive(self):
-        """Update command time to prevent wake timeout during active polling."""
-        self._update_command_time()
-
     async def wake_up(self) -> bool:
         await self._ensure_session()
 
@@ -134,7 +110,7 @@ class FireTVClient:
                     "Content-Type": "text/plain; charset=utf-8",
                     "Content-Length": "0"
                 },
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(total=WAKE_TIMEOUT)
             ) as response:
                 if response.status in [200, 201, 204]:
                     _LOG.info(f"✅ Wake-up successful: {response.status}")
@@ -143,32 +119,9 @@ class FireTVClient:
                     _LOG.debug(f"Wake-up returned status: {response.status} (device may already be awake)")
                     return True
 
-        except ClientOSError as ex:
-            _LOG.warning("[%s] OS error during wake-up (WiFi not ready), waiting %ss", self._device_address, ERROR_OS_WAIT)
-            try:
-                await asyncio.sleep(ERROR_OS_WAIT)
-                _LOG.info("[%s] Retrying wake-up after WiFi stabilization", self._device_address)
-                async with self.session.post(
-                    self._wake_url,
-                    headers={
-                        "User-Agent": "okhttp/4.10.0",
-                        "Content-Type": "text/plain; charset=utf-8",
-                        "Content-Length": "0"
-                    },
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    return response.status in [200, 201, 204]
-            except Exception as retry_ex:
-                _LOG.debug(f"Wake-up retry failed (device may already be awake): {retry_ex}")
-                return True
-
-        except asyncio.TimeoutError:
-            _LOG.debug("Wake-up timeout (device may already be awake)")
-            return True
-
         except Exception as e:
-            _LOG.debug(f"Wake-up error (device may already be awake): {e}")
-            return True
+            _LOG.warning(f"Wake-up failed: {e!r}")
+            return False
 
     async def request_pin(self, friendly_name: str = "UC Remote") -> bool:
         await self._ensure_session()
@@ -247,15 +200,12 @@ class FireTVClient:
 
             except asyncio.TimeoutError:
                 _LOG.warning(f"⏱️ Connection timeout to {self.host}:{self.port} (attempt {attempt}/{max_retries})")
-                await self._recreate_session()
 
             except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError) as e:
                 _LOG.warning(f"❌️ Connection failed to {self.host}:{self.port} (attempt {attempt}/{max_retries}): {str(e)}")
-                await self._recreate_session()
 
             except Exception as e:
                 _LOG.warning(f"❌️ Unexpected error (attempt {attempt}/{max_retries}): {str(e)}")
-                await self._recreate_session()
 
             if attempt < max_retries:
                 _LOG.info(f"⏳ Waiting {retry_delay} seconds before retry...")
@@ -268,59 +218,32 @@ class FireTVClient:
         command_ctx = get_context()
         await self._send_command_with_retry(self._send_command, command_ctx.command, **send_params)
 
-    async def _send_command_with_retry(self, command_func, command_name: str, max_retries: int = 2, **send_params):
-        if self._should_wake_device():
-            await self.wake_up()
-            await asyncio.sleep(0.5)
-            await self._recreate_session()
-
-        for attempt in range(1, max_retries + 1):
+    async def _send_command_with_retry(self, command_func, command_name: str, **send_params):
+        start = time.monotonic()
+        for attempt in count(1):
             try:
                 _LOG.debug(f"Sending command {command_name}, attempt {attempt}, params {send_params}")
                 result = await command_func( **send_params )
-                self._update_command_time()
+                _LOG.info(f"⏱️ {command_name}: {(time.monotonic() - start) * 1000:.0f} ms, attempt {attempt}")
                 return result
 
             except TokenInvalidError:
                 raise
 
-            except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError) as e:
-                _LOG.warning(f"Connection error on {command_name} (attempt {attempt}/{max_retries}): {e}")
-
-                if attempt < max_retries:
-                    _LOG.info(f"Attempting wake and retry for {command_name}...")
-                    await self.wake_up()
-                    await asyncio.sleep(2)
-                    await self._recreate_session()
-                else:
-                    _LOG.error(f"❌ {command_name} failed after {max_retries} attempts")
-                    raise
-
-            except ClientOSError as ex:
-                _LOG.warning(
-                    "[%s] OS error detected (WiFi not ready after wake), waiting %ss before retry",
-                    self._device_address,
-                    ERROR_OS_WAIT
-                )
-
-                try:
-                    await asyncio.sleep(ERROR_OS_WAIT)
-                    _LOG.info("[%s] Retrying command after WiFi stabilization", self._device_address)
-                    result = await command_func()
-                    self._update_command_time()
-                    return result
-
-                except Exception as retry_ex:
-                    _LOG.error(
-                        "[%s] Command failed even after WiFi wait period: %s",
-                        self._device_address,
-                        retry_ex
-                    )
-                    raise
-
-            except (ServerTimeoutError, ClientConnectionError) as ex:
+            except ServerTimeoutError as ex:
                 _LOG.error("[%s] Network error during command: %s", self._device_address, ex)
                 raise
+
+            except ClientConnectionError as e:
+                _LOG.warning(f"Connection error on {command_name} (attempt {attempt}): {e}")
+
+                if time.monotonic() - start >= RETRY_WINDOW:
+                    _LOG.error(f"❌ {command_name} failed after {attempt} attempts")
+                    raise
+                if attempt == 2 and (not self._wake_task or self._wake_task.done()):
+                    self._wake_task = asyncio.create_task(self.wake_up())
+                if attempt > 1:
+                    await asyncio.sleep(RETRY_INTERVAL)
 
             except Exception as e:
                 _LOG.error(f"Unexpected error in {command_name}: {e}")
