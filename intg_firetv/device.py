@@ -11,7 +11,7 @@ import time
 
 from ucapi_framework import PollingDevice
 
-from intg_firetv.client import FireTVClient
+from intg_firetv.client import FireTVClient, TokenInvalidError
 from intg_firetv.commandcontext import get_context
 from intg_firetv.config import FireTVConfig
 from intg_firetv.helper import get_my_name
@@ -137,7 +137,6 @@ class FireTVDevice(PollingDevice):
             connected = False
 
         if connected:
-            client.keep_alive()
             if self._state != "ON":
                 _LOG.info(f"[{self.log_id},{get_my_name()}] Device is now reachable")
                 self._state = "ON"
@@ -255,6 +254,8 @@ class FireTVDevice(PollingDevice):
             _LOG.warning(f"[{self.log_id},{get_my_name()}] Unknown command: {command}")
             return False
 
+        except TokenInvalidError:
+            raise
         except Exception as err:
             _LOG.error(f"[{self.log_id},{get_my_name()}] Error sending command {command}: {err}")
             return False
